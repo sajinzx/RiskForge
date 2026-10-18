@@ -40,3 +40,7 @@ def run(
     else:
         raise typer.BadParameter(f"unknown experiment {experiment!r}")
     typer.echo(f"{name} done, config hash {summary['config_hash']}")
+
+
+if __name__ == "__main__":
+    app()

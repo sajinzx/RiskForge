@@ -72,3 +72,13 @@ Finding: raw LightGBM 5/95 quantiles under-cover (74% at nominal 90% in the smok
 restore about 92-93%.
 Finding: NESO archived forecast has unknown vintage (flat error 12-48 h) and is excluded from main results (Q3).
 Status: code done; full runs recorded below when finished.
+
+## T3.1 Measurement harness
+Built: NVML power logger + trapezoid integration of (power - idle) with warm-up discard, resumable sweep (JSONL, skips
+finished config/repeat pairs), sweep grid from guide 9.1 (8 + 3 + 9 + 32 configs), torch workload runners (random data,
+FLOPs via torch.utils.flop_counter), Colab notebook, GPU spec config.
+Tested without a GPU: integration hand-computed, logger rate, grid size, resumability, output fields.
+NOT tested on a GPU: workloads.py (torch runners) and NvmlSampler; they need the owner's Colab run (T3.2).
+Deviation: idle power is measured once per config (30 s), not before every repeat, to keep the sweep near 3 hours.
+GPU peak-FLOP and TDP values in configs/gpus.yaml are from memory: owner must verify.
+Status: code done; measurements pending (owner).

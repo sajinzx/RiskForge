@@ -1,0 +1,25 @@
+# GPU spec-sheet values used by the gray-box energy model (implementation.md section 9.2).
+# peak TFLOPs: fp32 = CUDA-core peak, fp16 = dense tensor-core peak. TDP in watts.
+# These were entered from memory of vendor datasheets: OWNER MUST VERIFY each number against the
+# vendor sheet before reporting results. Matching is by substring of the NVML device name.
+gpus:
+  T4:
+    match: "T4"
+    peak_tflops: {fp32: 8.1, fp16: 65.0, bf16: 65.0}
+    tdp_w: 70
+  P100:
+    match: "P100"
+    peak_tflops: {fp32: 9.3, fp16: 18.7, bf16: 18.7}
+    tdp_w: 250
+  V100:
+    match: "V100"
+    peak_tflops: {fp32: 15.7, fp16: 125.0, bf16: 125.0}
+    tdp_w: 300
+  L4:
+    match: "L4"
+    peak_tflops: {fp32: 30.3, fp16: 121.0, bf16: 121.0}
+    tdp_w: 72
+  A100:
+    match: "A100"
+    peak_tflops: {fp32: 19.5, fp16: 312.0, bf16: 312.0}
+    tdp_w: 400
