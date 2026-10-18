@@ -151,3 +151,8 @@ At 60-80% load some oracle blocks return no solution inside the time limit (HiGH
 long-limit E4. Such blocks now use a deterministic greedy plan (cheapest feasible windows/steps in deadline order),
 counted as `oracle_heuristic_blocks` and treated like time-limited blocks: the oracle is then an incumbent, not a bound.
 E4 reports both counters; the "no scheduler beats the oracle" check is waived when any block was not proven optimal.
+
+## Status (2026-10-18)
+E1, E2, EW, E4 (120 s oracle), E5 (corrected), E6, E7 complete for GB; results summarised in README.md.
+E4 rerun with a 300 s oracle limit still running at the time of writing. Synthetic: estimator noise and energy
+validation data; assumed: GPU power. Owner tasks listed in README.md.
