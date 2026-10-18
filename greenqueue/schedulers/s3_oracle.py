@@ -32,6 +32,7 @@ from greenqueue.core.types import Decision, ForecastBundle, Job, JobView
 class OracleInfo:
     blocks: int = 0
     non_optimal_blocks: int = 0
+    heuristic_blocks: int = 0  # blocks where the MILP returned nothing and a greedy plan was used
 
 
 def _solver(time_limit_s: float, gap: float) -> pulp.LpSolver:
@@ -157,6 +158,61 @@ def _solve_block(
     return plan, status == "Optimal" and not hit_limit
 
 
+def _greedy_block(
+    jobs: Sequence[Job], ci: np.ndarray, spare: np.ndarray, dt_h: float
+) -> dict[str, list[int]]:
+    """Deterministic fallback plan when the MILP returns no solution (not optimal).
+
+    Jobs are placed in deadline order. Rigid jobs take the cheapest contiguous window that
+    fits the remaining capacity and meets the deadline (else the earliest window that fits);
+    interruptible jobs take the cheapest free steps before the deadline (else the earliest free
+    steps), plus extra steps for checkpoint overhead. This is only a feasible incumbent.
+    """
+    n = len(ci)
+    cap = spare.copy()
+    plan: dict[str, list[int]] = {}
+    for j in sorted(jobs, key=lambda j: (j.deadline, j.arrival, j.id)):
+        d, g = j.duration_steps, j.gpus
+        dl = math.floor(j.deadline + 1e-9)
+        free = cap >= g
+        if not j.interruptible:
+            best, best_cost, first = None, math.inf, None
+            for s in range(j.arrival, n - d + 1):
+                if not free[s : s + d].all():
+                    continue
+                if first is None:
+                    first = s
+                if s + d <= dl:
+                    cost = float(ci[s : s + d].sum())
+                    if cost < best_cost:
+                        best, best_cost = s, cost
+            start = best if best is not None else first
+            if start is None:
+                raise RuntimeError(f"greedy fallback found no window for job {j.id}")
+            steps = list(range(start, start + d))
+        else:
+            o = j.checkpoint_overhead_h / dt_h
+            window = [t for t in range(j.arrival, min(dl, n)) if free[t]]
+            window.sort(key=lambda t: (float(ci[t]), t))
+            later = [t for t in range(max(j.arrival, dl), n) if free[t]]
+            pool = window + later
+            need = d
+            while True:
+                chosen = sorted(pool[:need])
+                runs = 1 + sum(1 for a, b in zip(chosen, chosen[1:], strict=False) if b != a + 1)
+                want = d + math.ceil(o * (runs - 1) - 1e-9)
+                if want <= need or need >= len(pool):
+                    break
+                need = want
+            if len(pool) < need:
+                raise RuntimeError(f"greedy fallback found no steps for job {j.id}")
+            steps = chosen
+        for t in steps:
+            cap[t] -= g
+        plan[j.id] = steps
+    return plan
+
+
 def solve_oracle(
     jobs: Sequence[Job],
     true_ci: np.ndarray,
@@ -179,15 +235,20 @@ def solve_oracle(
         block = by_block[b]
         part: dict[str, list[int]] = {}
         optimal = False
-        for allowance in (late_max, 4 * late_max, 16 * late_max):  # widen if backlog is deeper
-            try:
-                part, optimal = _solve_block(
-                    block, true_ci, spare, dt_h, allowance, time_limit_s, gap
-                )
-                break
-            except RuntimeError:
-                if allowance == 16 * late_max:
-                    raise
+        try:
+            for allowance in (late_max, 4 * late_max, 16 * late_max):  # widen if backlog deeper
+                try:
+                    part, optimal = _solve_block(
+                        block, true_ci, spare, dt_h, allowance, time_limit_s, gap
+                    )
+                    break
+                except RuntimeError:
+                    if allowance == 16 * late_max:
+                        raise
+        except RuntimeError:
+            part = _greedy_block(block, true_ci, spare, dt_h)
+            optimal = False
+            info.heuristic_blocks += 1
         info.blocks += 1
         info.non_optimal_blocks += 0 if optimal else 1
         gpus = {j.id: j.gpus for j in block}

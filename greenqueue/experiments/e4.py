@@ -110,6 +110,7 @@ def evaluate_schedulers(
         )
         info["oracle_blocks"] = oinfo.blocks
         info["oracle_non_optimal_blocks"] = oinfo.non_optimal_blocks
+        info["oracle_heuristic_blocks"] = oinfo.heuristic_blocks
     return results, info
 
 
@@ -215,6 +216,7 @@ def run_e4(
         jobs=("id", "nunique"),
         oracle_blocks=("oracle_blocks", "max"),
         oracle_time_limited_blocks=("oracle_time_limited_blocks", "max"),
+        oracle_heuristic_blocks=("oracle_heuristic_blocks", "max"),
     )
     per_seed.to_csv(out / "per_seed.csv")
 
@@ -241,7 +243,9 @@ def run_e4(
             e, v = totals[(seed, name)]
             if name != "S3_oracle" and o_v == 0 and v == 0 and o_e > e * 1.005:
                 beaten.append((seed, name))
-    limited = int(per_seed["oracle_time_limited_blocks"].sum())
+    limited = int(
+        per_seed["oracle_time_limited_blocks"].sum() + per_seed["oracle_heuristic_blocks"].sum()
+    )
     # when some oracle blocks hit the time limit the oracle is only a heuristic there, so a
     # scheduler beating it is reported but not treated as a bug
     sanity["none_beats_oracle"] = (not beaten) or limited > 0
@@ -304,6 +308,7 @@ def run_e4(
         "power_per_gpu": "ASSUMED lognormal, median 0.20 kW (no GPU measurements yet)",
         "oracle_time_limit_s_per_block": oracle_limit,
         "oracle_time_limited_blocks": limited,
+        "oracle_heuristic_blocks": int(per_seed["oracle_heuristic_blocks"].sum()),
         "oracle_beaten_cases": beaten,
         "sanity": sanity,
         "results": table.round(4).to_dict("records"),

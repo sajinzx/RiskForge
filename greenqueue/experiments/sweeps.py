@@ -139,6 +139,9 @@ def run_task(cell: Cell, seed: int, root: str, smoke: bool) -> pd.DataFrame:
                     "solves": info.get("mpc_solves", 0) if name == "S4_mpc" else 0,
                     "pool_gpus": js.capacity_gpus,
                     "oracle_blocks": info.get("oracle_blocks", 0) if name == "S3_oracle" else 0,
+                    "oracle_heuristic_blocks": (
+                        info.get("oracle_heuristic_blocks", 0) if name == "S3_oracle" else 0
+                    ),
                     "oracle_time_limited_blocks": (
                         info.get("oracle_non_optimal_blocks", 0) if name == "S3_oracle" else 0
                     ),

@@ -145,3 +145,9 @@ After reformatting, the scenario cells of E5 lost `overrides=(UTILISATION,)`, so
 the ASAP baseline ran at 30%: savings and violations in that E5 output are invalid (kept as results/e5_superseded_load_bug).
 Both E5 and E6 now assert that all cells of an experiment see the same GPU pool per seed. E5 is rerun after E7 and the
 long-oracle E4. E6 and E7 were unaffected (their overrides were present and are covered by the new assertion for E6).
+
+## Oracle fallback for blocks with no MILP incumbent
+At 60-80% load some oracle blocks return no solution inside the time limit (HiGHS "Not Solved"), which crashed E7 and the
+long-limit E4. Such blocks now use a deterministic greedy plan (cheapest feasible windows/steps in deadline order),
+counted as `oracle_heuristic_blocks` and treated like time-limited blocks: the oracle is then an incumbent, not a bound.
+E4 reports both counters; the "no scheduler beats the oracle" check is waived when any block was not proven optimal.

@@ -74,3 +74,31 @@ def test_no_online_scheduler_beats_the_oracle(seed: int) -> None:
         # lateness for nothing, but it never has to)
         if res.violation_rate == 0.0 and orc.violation_rate == 0.0:
             assert orc.total_emissions_g <= res.total_emissions_g + 1e-6
+
+
+def test_greedy_fallback_is_feasible_and_completes_in_the_simulator() -> None:
+    from greenqueue.schedulers.s3_oracle import _greedy_block
+
+    rng = np.random.default_rng(5)
+    ci = rng.uniform(40, 500, 96)
+    jobs = []
+    for i in range(10):
+        a = int(rng.integers(0, 30))
+        d = int(rng.integers(1, 5))
+        jobs.append(
+            job(
+                f"g{i}", arrival=a, dur=d, gpus=int(rng.integers(1, 3)),
+                power=float(rng.uniform(0.2, 0.4)), deadline=a + d + int(rng.integers(8, 30)),
+                interruptible=bool(rng.integers(0, 2)), checkpoint_overhead_h=0.5,
+            )
+        )  # fmt: skip
+    plan = _greedy_block(jobs, ci, np.full(len(ci), 3.0), 1.0)
+    use = np.zeros(len(ci))
+    for j in jobs:
+        for t in plan[j.id]:
+            use[t] += j.gpus
+    assert use.max() <= 3
+    res = simulate(jobs, PlanScheduler(plan), ci, capacity_gpus=3, provider=provider_for(jobs, ci))
+    assert res.unfinished == 0
+    asap = simulate(jobs, Asap(), ci, capacity_gpus=3, provider=provider_for(jobs, ci))
+    assert res.total_emissions_g <= asap.total_emissions_g * 1.001  # cheaper than ASAP here
