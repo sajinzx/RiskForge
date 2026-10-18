@@ -20,7 +20,7 @@ dependencies = [
     "scikit-learn",
     "lightgbm",
     "optuna",
-    "pulp",
+    "pulp>=3.0,<4",
     "highspy",
     "pyyaml",
     "pydantic>=2",
@@ -54,3 +54,8 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning:pulp.*", "ignore:.*eval_set.*:DeprecationWarning"]
+
+[[tool.mypy.overrides]]
+module = ["pulp", "pulp.*"]
+follow_imports = "skip"

@@ -47,3 +47,10 @@ ASAP on a known series, threshold pauses interruptible job). 11 tests pass.
 Design: schedulers get JobView + ForecastBundle only; truth stays in Job (simulator/oracle only).
 Simple S4 = greedy window with the duration upper bound.
 Status: done
+
+## T4.3 Oracle MILP (S3)
+Acceptance: known optima (rigid job, interruptible split, capacity sharing); randomized check that no online scheduler
+beats the oracle when both meet all deadlines (4 seeds); 50 tests pass.
+Notes: PuLP pinned to 3.x (4.0.1 changed the API). Oracle blocks of 168 arrival steps with reserved capacity carried
+forward. With checkpoint overhead > 0 the plan is near-optimal (partial last step charged as full), documented.
+Status: done
