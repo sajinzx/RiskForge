@@ -1,0 +1,12 @@
+# Chronological splits on forecast ISSUE time (implementation.md section 7.4). Never shuffled.
+# Test data is read only by final experiment runs, never by tuning (assert_not_test guards this).
+train_start: "2018-01-01"
+calib_start: "2023-01-01"
+test_start: "2024-01-01"
+test_end: "2026-09-30"
+# --smoke runs use this shortened layout so they finish in a minute.
+smoke:
+  train_start: "2021-01-01"
+  calib_start: "2022-07-01"
+  test_start: "2023-01-01"
+  test_end: "2023-06-30"

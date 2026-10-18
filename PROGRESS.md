@@ -63,3 +63,12 @@ trace weeks resampled with replacement onto target weeks (weekday and time of da
 the target zone's clock); 150 jobs per week subsampled so the oracle MILP stays tractable; pool sized for 60% ASAP utilisation.
 Power per GPU is an ASSUMED lognormal (median 0.20 kW) because no GPU measurements exist yet.
 Status: done
+
+## T5.3 E1 and E4 pipelines (code + smoke tests)
+E1: GB hourly series (quality report: 0.5% missing before cleaning, 243 h still missing), F0-F3 + conformal,
+7-day block-bootstrap CIs, coverage/calibration/MAE plots, forecast export for scheduling. E4: trace replay with
+S0-S4, paired block-bootstrap savings, oracle share. Both have end-to-end tests on synthetic inputs.
+Finding: raw LightGBM 5/95 quantiles under-cover (74% at nominal 90% in the smoke run); split conformal and CQR
+restore about 92-93%.
+Finding: NESO archived forecast has unknown vintage (flat error 12-48 h) and is excluded from main results (Q3).
+Status: code done; full runs recorded below when finished.
