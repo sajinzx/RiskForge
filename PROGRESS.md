@@ -54,3 +54,12 @@ beats the oracle when both meet all deadlines (4 seeds); 50 tests pass.
 Notes: PuLP pinned to 3.x (4.0.1 changed the API). Oracle blocks of 168 arrival steps with reserved capacity carried
 forward. With checkpoint overhead > 0 the plan is near-optimal (partial last step charged as full), documented.
 Status: done
+
+## T5.1 + T5.2 Trace loader and job synthesis
+Real data: Alibaba PAI cluster-trace-gpu-v2020 `pai_task_table` (34 MB) downloaded to data/raw/traces/alibaba;
+SHA-256 matches the value published in the trace README (cd1d6dc3...).
+Choices (owner to review): each task is one job; terminated tasks only, 10 min to 72 h; GPUs = ceil(inst_num*plan_gpu/100);
+trace weeks resampled with replacement onto target weeks (weekday and time of day kept, trace clock UTC+8 treated as
+the target zone's clock); 150 jobs per week subsampled so the oracle MILP stays tractable; pool sized for 60% ASAP utilisation.
+Power per GPU is an ASSUMED lognormal (median 0.20 kW) because no GPU measurements exist yet.
+Status: done

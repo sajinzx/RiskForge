@@ -1,0 +1,15 @@
+# Simulator and job-synthesis parameters (implementation.md section 10). Changing a value changes results.
+dt_h: 1.0
+slack_h: [6, 12, 24, 48]
+slack_probs: [0.3, 0.3, 0.25, 0.15]
+interruptible_share: 0.5
+checkpoint_overhead_h: 0.0833333333   # 5 minutes
+target_utilization: 0.6               # pool size chosen so ASAP utilisation is about this
+jobs_per_week: 150                    # subsample so the oracle MILP stays tractable
+max_duration_h: 72                    # longer jobs are dropped (slack is only 6-48 h)
+min_duration_h: 0.1666667             # jobs under 10 minutes are dropped
+# ASSUMPTION (no GPU measurements yet): power per GPU while running, lognormal, clipped (kW).
+power_kw_median: 0.20
+power_kw_sigma: 0.35
+power_kw_clip: [0.05, 0.40]
+seeds: [0, 1, 2, 3, 4]
