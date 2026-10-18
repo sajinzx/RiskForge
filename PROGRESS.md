@@ -31,3 +31,11 @@ CQR hit 90%/80% within 2 pp on synthetic iid data (n=4000); pinball hand-checked
 Convention: horizon h targets label T+(h-1)h; last known label is T-1h. Seasonal-naive uses the most recent
 same-hour value known at T (k=ceil(h/24) days back).
 Status: done
+
+## T2.2 + T2.3 Forecasters and tuning
+Acceptance: baselines read the right columns; seasonal naive beats persistence on a periodic signal; ridge and
+LightGBM beat persistence; quantiles ordered (sorted per row to prevent crossing); folds chronological and purged;
+test-period guard raises; Optuna smoke run. Full 50-trial tuning is run by the E1 script on real data.
+Deviation: Optuna objective is the median pinball loss (guide §8.5 gives two wordings; tuning on tau=0.5 and reusing
+the structure for 0.05/0.95 was chosen for speed).
+Status: done
