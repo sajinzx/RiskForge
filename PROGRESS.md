@@ -16,3 +16,11 @@ ruff/mypy/pytest pass; live 2-day smoke run gives 96/96 rows.
 Notes: the API returns the slot containing `from` (starts before `from`), so rows are trimmed to
 `[from, to)`. Full 2018 to 2026-09 download is for the owner (T1.3); not run here.
 Status: done
+
+## T1.2 ENTSO-E downloader, intensity, preprocessing
+Acceptance: hand-computed intensity test, pumped-storage consumption excluded, unknown fuel raises,
+gap rules (2h linear, 24h seasonal, longer stays NaN), month windowing; all checks pass.
+Notes: emission factors in configs/emission_factors.yaml; entries with status "assumption" (oil, waste,
+other, peat, coal-derived gas, storage) are not from the IPCC table (see QUESTIONS.md Q2).
+The ENTSO-E downloader is untested against the live API (no token); only mocked-query logic is tested.
+Status: done

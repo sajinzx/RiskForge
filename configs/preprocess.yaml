@@ -1,0 +1,6 @@
+# Preprocessing parameters (implementation.md section 7). Not hard-coded in code.
+ci_bounds: [0.0, 1200.0]          # gCO2/kWh physical bounds
+interp_max_hours: 2               # linear interpolation, imputed=1
+seasonal_max_hours: 24            # fill from same hour previous week, imputed=2
+seasonal_lag_hours: 168
+entsoe_resample: 60min

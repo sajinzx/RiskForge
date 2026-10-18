@@ -1,0 +1,27 @@
+# Lifecycle emission factors, gCO2eq/kWh, keyed by ENTSO-E production type.
+# status "ipcc": IPCC AR5 WGIII Annex III (Table A.III.2) median lifecycle value; owner to re-verify.
+# status "assumption": NOT from that table; documented here and listed as a limitation.
+# Changing any value changes research results.
+factors:
+  Fossil Hard coal: {ef: 820, status: ipcc}
+  Fossil Brown coal/Lignite: {ef: 820, status: ipcc}   # sensitivity: ~1050 (secondary sources)
+  Fossil Coal-derived gas: {ef: 820, status: assumption}  # treated as coal
+  Fossil Gas: {ef: 490, status: ipcc}
+  Fossil Oil: {ef: 650, status: assumption}  # not in IPCC table; secondary-source value
+  Fossil Oil shale: {ef: 650, status: assumption}
+  Fossil Peat: {ef: 820, status: assumption}  # treated as coal
+  Biomass: {ef: 230, status: ipcc}
+  Nuclear: {ef: 12, status: ipcc}
+  Hydro Run-of-river and poundage: {ef: 24, status: ipcc}
+  Hydro Water Reservoir: {ef: 24, status: ipcc}
+  Hydro Pumped Storage: {ef: 24, status: ipcc}   # generation side only; consumption excluded
+  Wind Onshore: {ef: 11, status: ipcc}
+  Wind Offshore: {ef: 12, status: ipcc}
+  Solar: {ef: 48, status: ipcc}   # utility-scale PV
+  Geothermal: {ef: 38, status: ipcc}
+  Marine: {ef: 17, status: ipcc}
+  Waste: {ef: 400, status: assumption}
+  Other renewable: {ef: 50, status: assumption}
+  Other: {ef: 400, status: assumption}
+  Energy storage: {ef: 0, status: assumption}
+exclude_from_denominator: ["Energy storage"]
