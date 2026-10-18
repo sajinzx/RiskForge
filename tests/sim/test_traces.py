@@ -64,3 +64,14 @@ def test_pool_sized_for_target_utilisation() -> None:
     js = synthesize_jobs(_tasks(), cfg, n_weeks=4, seed=0)
     util = js.meta["offered_gpu_hours"] / (js.capacity_gpus * 4 * 7 * 24)
     assert 0.5 < util <= 0.62
+
+
+def test_job_gpu_requests_are_capped_so_the_pool_is_not_set_by_outliers() -> None:
+    tasks = _tasks()
+    tasks.loc[tasks.index[:10], "gpus"] = 400
+    cfg = {**CFG, "jobs_per_week": 100, "max_job_gpus": 8}
+    js = synthesize_jobs(tasks, cfg, n_weeks=4, seed=0)
+    assert max(j.gpus for j in js.jobs) <= 8
+    assert js.capacity_gpus < 100
+    util = js.meta["offered_gpu_hours"] / (js.capacity_gpus * 4 * 7 * 24)
+    assert 0.5 < util <= 0.62

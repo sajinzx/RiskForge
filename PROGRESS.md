@@ -94,3 +94,10 @@ so accuracy there is circular and proves nothing). `greenqueue run e3` fails wit
 `greenqueue run e3 --smoke` writes to results/e3_SYNTHETIC. On synthetic data conformal coverage drops under LOMO/LOGO
 (about 0.65-0.70 at nominal 0.90), the expected shift effect.
 Status: code done, real measurements pending (owner, T3.2).
+
+## T5.4 Fix: cap per-job GPU requests (found by reading the first E4 run)
+First full E4 run showed pool sizes of 100-400 GPUs and ASAP utilisation of 2-13% instead of 60%: a few huge distributed
+Alibaba tasks set the pool size, so capacity never bound and the comparison was too easy. Per-job GPU requests are now capped
+at 8 (configs/sim.yaml max_job_gpus; capped jobs counted in meta). The uncapped run is kept in results/e4_superseded_uncapped
+for reference and must not be quoted.
+Status: fixed; E4 rerun below.

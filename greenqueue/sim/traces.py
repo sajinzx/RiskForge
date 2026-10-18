@@ -92,11 +92,14 @@ def synthesize_jobs(
     lo_p, hi_p = cfg["power_kw_clip"]
     steps_per_week = int(round(7 * 24 / dt))
     jobs: list[Job] = []
+    max_gpus = int(cfg.get("max_job_gpus", 10**9))
+    n_capped = 0
     for w in range(n_weeks):
         src = int(rng.choice(usable))
         pool = tasks[tasks["trace_week"] == src]
         pick = pool.iloc[rng.choice(len(pool), size=cfg["jobs_per_week"], replace=False)]
         for k, row in enumerate(pick.itertuples(index=False)):
+            n_capped += int(row.gpus > max_gpus)
             arrival = w * steps_per_week + int(row.week_s // (dt * 3600))
             dur = max(1, math.ceil(row.duration_s / (dt * 3600)))
             raw_p = cfg["power_kw_median"] * np.exp(rng.normal(0, cfg["power_kw_sigma"]))
@@ -106,12 +109,12 @@ def synthesize_jobs(
                     id=f"w{w}_{k}",
                     arrival=arrival,
                     duration_steps=dur,
-                    gpus=int(row.gpus),
+                    gpus=min(int(row.gpus), max_gpus),
                     power_kw_per_gpu=float(np.clip(raw_p, lo_p, hi_p)),
                     deadline=float(arrival + dur + math.ceil(s / dt)),
                     interruptible=bool(rng.random() < cfg["interruptible_share"]),
                     checkpoint_overhead_h=float(cfg["checkpoint_overhead_h"]),
-                    features={"gpus": float(row.gpus), "duration_h": dur * dt},
+                    features={"gpus": float(min(int(row.gpus), max_gpus)), "duration_h": dur * dt},
                 )
             )
     n_steps = n_weeks * steps_per_week + int(tail_h / dt)
@@ -119,5 +122,11 @@ def synthesize_jobs(
     horizon_h = n_weeks * 7 * 24
     need = math.ceil(gpu_hours / (cfg["target_utilization"] * horizon_h))
     cap = max(max(j.gpus for j in jobs), need)
-    meta = {"seed": seed, "n_jobs": len(jobs), "offered_gpu_hours": gpu_hours, "pool_gpus": cap}
+    meta = {
+        "seed": seed,
+        "n_jobs": len(jobs),
+        "offered_gpu_hours": gpu_hours,
+        "pool_gpus": cap,
+        "jobs_gpu_capped": n_capped,
+    }
     return JobSet(jobs, cap, n_steps, meta)

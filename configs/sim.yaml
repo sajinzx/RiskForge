@@ -6,6 +6,7 @@ interruptible_share: 0.5
 checkpoint_overhead_h: 0.0833333333   # 5 minutes
 target_utilization: 0.6               # pool size chosen so ASAP utilisation is about this
 jobs_per_week: 150                    # subsample so the oracle MILP stays tractable
+max_job_gpus: 8                       # per-job GPU request is capped (one node); huge distributed tasks would set the pool size
 max_duration_h: 72                    # longer jobs are dropped (slack is only 6-48 h)
 min_duration_h: 0.1666667             # jobs under 10 minutes are dropped
 # ASSUMPTION (no GPU measurements yet): power per GPU while running, lognormal, clipped (kW).
