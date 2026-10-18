@@ -36,6 +36,7 @@ class Cell:
     n_weeks: int = 4
     q: float = 0.3
     oracle_time_limit_s: float = 120.0
+    keep_profile: bool = False  # also return each job's (step, kWh) profile (E8 re-scoring)
     period: str = "test"  # test | calib (calib uses the 2023 year and static CQR forecasts)
     overrides: tuple[tuple[str, Any], ...] = field(default_factory=tuple)  # sim.yaml overrides
 
@@ -148,6 +149,9 @@ def run_task(cell: Cell, seed: int, root: str, smoke: bool) -> pd.DataFrame:
                 }
             )
         )
+        if cell.keep_profile:
+            frames[-1]["profile"] = pd.Series([x.profile for x in r.jobs], dtype=object).to_numpy()
+            frames[-1]["start"] = start
     return pd.concat(frames)
 
 

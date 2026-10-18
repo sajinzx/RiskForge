@@ -32,6 +32,13 @@ from a time-limited MILP, not a proven optimum. 25 blocks hit the time limit and
 from 8.2% to 10.6%. A perfect carbon forecast gives savings 10.7% and perfect energy/duration 10.8%, so the
 duration bound costs more savings than carbon forecast error does.
 
+**Average vs marginal accounting (E8, 60% load, oracle 60 s per block).** Schedules planned on average intensity
+were re-scored with marginal-emissions PROXIES (not measured marginal data): `merit_gas` (gas on the margin when it
+supplies at least 10% of generation, else 0) and `const_gas` (control). Savings vs ASAP, average / merit_gas:
+greedy 4.4% / 0.1% (CI -2.0 to 1.5%), threshold 4.1% / -1.1%, simple conformal 4.0% / 0.2%, oracle 8.8% / 1.4%
+(CI 0.0 to 2.7%). Under the proxy, almost none of the saving survives, apart from a small one for the oracle. A
+demand-regression proxy was not possible (the data holds fuel shares, not demand).
+
 **Sensitivity (E7, 12h and 24h slack, load 0.4/0.6/0.8).** Savings rise with slack and fall with load; at 80%
 load every scheduler violates deadlines heavily, oracle included. Full table: `results/e7/sensitivity.csv`.
 
@@ -49,7 +56,7 @@ Experiments are in `greenqueue/experiments`, run with `python -m greenqueue.cli 
 - Estimator noise is synthetic; energy models were validated only on synthetic data.
 - Emission factors, GPU specs and data licences are unverified (`QUESTIONS.md`, `data/MANIFEST.md`).
 - NESO's own forecast (FN) has unknown vintage, so it is excluded from the main comparison.
-- Single zone (GB); average, not marginal, carbon intensity.
+- Single zone (GB); planning uses average intensity, and marginal emissions appear only as proxies in E8.
 - The MILP oracle is time-limited at higher load; `oracle_time_limited_blocks` in `summary.json` counts these.
 - MPC mode was picked on the calibration year after one diagnostic looked at test weeks (disclosed in `PROGRESS.md`).
 - Related work (`paper/related_work.md`) is preliminary; Li et al. 2024 already applies conformal prediction to
@@ -58,4 +65,4 @@ Experiments are in `greenqueue/experiments`, run with `python -m greenqueue.cli 
 ## Not done (owner)
 
 GPU measurements on Colab (`greenqueue/energy/harness/colab_runner.ipynb`), ENTSO-E token for DE/FR/PL/ES and
-E8/E9, verifying factors/specs/licences, literature review and citations, dependency lockfile (Q1).
+E9, verifying factors/specs/licences, literature review and citations, dependency lockfile (Q1).

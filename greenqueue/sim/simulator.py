@@ -49,6 +49,7 @@ class _State:
     energy_kwh: float = 0.0
     emissions_g: float = 0.0
     pauses: int = 0
+    profile: list[tuple[int, float]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class JobResult:
     pauses: int
     violated: bool
     wait_h: float
+    profile: tuple[tuple[int, float], ...] = ()  # (step, kWh) for re-scoring
 
 
 @dataclass
@@ -152,6 +154,7 @@ def simulate(
                 run_h = min(dt_h, s.remaining_h)
                 kwh = s.job.gpus * s.job.power_kw_per_gpu * run_h
                 s.energy_kwh += kwh
+                s.profile.append((t, kwh))
                 s.emissions_g += kwh * float(true_ci[t])
                 s.remaining_h -= run_h
                 s.elapsed_h += run_h
@@ -182,6 +185,7 @@ def simulate(
                 wait_h=((s.first_start - j.arrival) * dt_h)
                 if s.first_start is not None
                 else math.inf,
+                profile=tuple(s.profile),
             )
         )
     return SimResult(results, dt_h, busy)

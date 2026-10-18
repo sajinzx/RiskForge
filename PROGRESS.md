@@ -156,3 +156,5 @@ E4 reports both counters; the "no scheduler beats the oracle" check is waived wh
 E1, E2, EW, E4 (300 s oracle), E5 (corrected), E6, E7 complete for GB; results summarised in README.md.
 E4 final run uses a 300 s oracle limit (25 time-limited, 2 heuristic blocks).
 validation data; assumed: GPU power. Owner tasks listed in README.md.
+
+E8 (average vs marginal proxies) implemented and run on GB; results in README.md. Only E9 (cross-zone) remains, blocked on the ENTSO-E token.
