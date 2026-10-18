@@ -129,7 +129,17 @@ def solve_oracle(
         by_block.setdefault(j.arrival // block_steps, []).append(j)
     for b in sorted(by_block):
         block = by_block[b]
-        part, optimal = _solve_block(block, true_ci, spare, dt_h, late_max, time_limit_s, gap)
+        part: dict[str, list[int]] = {}
+        optimal = False
+        for allowance in (late_max, 4 * late_max, 16 * late_max):  # widen if backlog is deeper
+            try:
+                part, optimal = _solve_block(
+                    block, true_ci, spare, dt_h, allowance, time_limit_s, gap
+                )
+                break
+            except RuntimeError:
+                if allowance == 16 * late_max:
+                    raise
         info.blocks += 1
         info.non_optimal_blocks += 0 if optimal else 1
         gpus = {j.id: j.gpus for j in block}

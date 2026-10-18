@@ -24,6 +24,9 @@ from greenqueue.experiments.sweeps import Cell, run_cells
 ALPHAS = (0.01, 0.05, 0.1, 0.2)
 SIGMA = 0.3
 SHIFT = 1.6
+# At the guide's 60% load plain ASAP already misses 1-19% of deadlines from queueing alone, which
+# swamps the effect of the duration bound; E5 therefore runs at 30% load (E7 sweeps load).
+UTILISATION = ("target_utilization", 0.3)
 
 
 def run_e5(
@@ -38,7 +41,15 @@ def run_e5(
     if smoke:
         scenarios = {"calibrated": None}
 
-    cells = [Cell("ref", ("S0_asap", "S1_greedy", "S3_oracle"), sigma=SIGMA, n_weeks=n_weeks)]
+    cells = [
+        Cell(
+            "ref",
+            ("S0_asap", "S1_greedy", "S3_oracle"),
+            sigma=SIGMA,
+            n_weeks=n_weeks,
+            overrides=(UTILISATION,),
+        )  # fmt: skip
+    ]
     for scen, cal_sigma in scenarios.items():
         for a in grid:
             cells.append(
