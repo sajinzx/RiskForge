@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Reject commits that mention AI attribution.
+msg_file="$1"
+if grep -Eiq 'co-authored-by|claude|anthropic|generated with|ai-generated|🤖' "$msg_file"; then
+  echo "ERROR: commit message contains AI attribution. Remove it and retry." >&2
+  exit 1
+fi

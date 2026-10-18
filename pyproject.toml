@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "greenqueue"
+version = "0.1.0"
+description = "Uncertainty-aware carbon scheduling for AI workloads"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas",
+    "pyarrow",
+    "numpy",
+    "scipy",
+    "requests",
+    "tenacity",
+    "entsoe-py",
+    "holidays",
+    "scikit-learn",
+    "lightgbm",
+    "optuna",
+    "pulp",
+    "highspy",
+    "pyyaml",
+    "pydantic>=2",
+    "matplotlib",
+    "typer",
+]
+
+[project.optional-dependencies]
+# GPU measurement harness only (Colab / Kaggle); not needed on the laptop.
+gpu = ["nvidia-ml-py", "codecarbon", "torch", "torchvision", "transformers", "accelerate"]
+dev = ["pytest", "hypothesis", "ruff", "mypy", "pre-commit", "types-PyYAML", "types-requests", "pandas-stubs"]
+
+[project.scripts]
+greenqueue = "greenqueue.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["greenqueue"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
