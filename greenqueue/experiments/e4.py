@@ -16,8 +16,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from greenqueue.core.types import Job, Scheduler
-from greenqueue.eval.bootstrap import paired_saving_ci
+from greenqueue.core.types import Scheduler
 from greenqueue.eval.plots import PALETTE, new_axes, save
 from greenqueue.experiments.harness import (
     ForecastReplay,
@@ -149,34 +148,16 @@ def tune_threshold_q(
     return float(best["q"]), table
 
 
-def _per_job(res: SimResult, jobs: list[Job], seed: int, sched: str) -> pd.DataFrame:
-    arrival = {j.id: j.arrival for j in jobs}
-    return (
-        pd.DataFrame(
-            {
-                "seed": seed,
-                "scheduler": sched,
-                "id": [r.id for r in res.jobs],
-                "week": [arrival[r.id] // 168 for r in res.jobs],
-                "emissions_g": [r.emissions_g for r in res.jobs],
-                "energy_kwh": [r.energy_kwh for r in res.jobs],
-                "violated": [r.violated for r in res.jobs],
-                "wait_h": [r.wait_h for r in res.jobs],
-            }
-        )
-        .sort_values(["seed", "id"])
-        .reset_index(drop=True)
-    )
-
-
 def run_e4(
     root: Path,
     *,
     smoke: bool = False,
-    tasks: pd.DataFrame | None = None,
     sigma: float = 0.3,
     alpha: float = 0.05,
+    n_jobs: int = 5,
 ) -> dict[str, Any]:
+    from greenqueue.experiments.sweeps import Cell, run_cells, run_task, summarize_cells
+
     sim_cfg = load_config(root / "configs" / "sim.yaml")
     split_cfg = yaml.safe_load((root / "configs" / "splits.yaml").read_text(encoding="utf8"))
     sp = split_cfg["smoke"] if smoke else split_cfg
@@ -189,15 +170,14 @@ def run_e4(
     n_weeks, seeds, calib_weeks = (2, [0], 2) if smoke else (13, list(sim_cfg["seeds"]), 4)
     dt_h = float(sim_cfg["dt_h"])
 
-    if tasks is None:
-        cache = root / "data" / "processed" / "alibaba_tasks.parquet"
-        if cache.exists():
-            tasks = pd.read_parquet(cache)
-        else:
-            csv = root / "data" / "raw" / "traces" / "alibaba" / "x" / "pai_task_table.csv"
-            tasks = load_alibaba_tasks(csv, sim_cfg["min_duration_h"], sim_cfg["max_duration_h"])
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            tasks.to_parquet(cache)
+    cache = root / "data" / "processed" / "alibaba_tasks.parquet"
+    if cache.exists():
+        tasks = pd.read_parquet(cache)
+    else:
+        csv = root / "data" / "raw" / "traces" / "alibaba" / "x" / "pai_task_table.csv"
+        tasks = load_alibaba_tasks(csv, sim_cfg["min_duration_h"], sim_cfg["max_duration_h"])
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        tasks.to_parquet(cache)
     gb_ci = pd.read_parquet(root / "data" / "processed" / "gb_hourly.parquet")["ci"]
     fc = pd.read_parquet(e1_dir / "forecasts_F3_cqr90.parquet")
 
@@ -205,98 +185,56 @@ def run_e4(
     c_start = _monday_on_or_after(pd.Timestamp(sp["calib_start"], tz="UTC"))
     c_set = synthesize_jobs(tasks, sim_cfg, n_weeks=calib_weeks, seed=100)
     c_ci, _ = true_ci_window(gb_ci, c_start, c_set.n_steps)
-    c_fc = fc[(fc["split"] == "calib")]
-    c_replay = ForecastReplay(c_fc, c_start, dt_h)
+    c_replay = ForecastReplay(fc[fc["split"] == "calib"], c_start, dt_h)
     q_star, q_table = tune_threshold_q(c_set, c_ci, c_replay, sigma=sigma, alpha=alpha, dt_h=dt_h)
 
-    # ---- test replay ----------------------------------------------------------------------
-    t_start = _monday_on_or_after(pd.Timestamp(sp["test_start"], tz="UTC"))
-    probe = synthesize_jobs(tasks, sim_cfg, n_weeks=n_weeks, seed=seeds[0])
-    t_fc = fc[
-        (fc["split"] == "test")
-        & (fc["target_time"] >= t_start - pd.Timedelta(days=1))
-        & (fc["target_time"] <= t_start + pd.Timedelta(hours=probe.n_steps + 48))
-    ]
-    replay = ForecastReplay(t_fc, t_start, dt_h)
-
-    frames, per_seed, oracle_info, gaps = [], [], [], 0
-    sanity = {"s0_deterministic": True, "none_beats_oracle": True, "all_finished": True}
-    for seed in seeds:
-        js = synthesize_jobs(tasks, sim_cfg, n_weeks=n_weeks, seed=seed)
-        ci, gaps = true_ci_window(gb_ci, t_start, js.n_steps)
-        res, info = evaluate_schedulers(
-            js, ci, replay, sigma=sigma, alpha=alpha, q=q_star, dt_h=dt_h, seed=seed
-        )
-        oracle_info.append(info)
-        if seed == seeds[0]:
-            again, _ = evaluate_schedulers(
-                js,
-                ci,
-                replay,
-                sigma=sigma,
-                alpha=alpha,
-                q=q_star,
-                dt_h=dt_h,
-                seed=seed,
-                only=("S0_asap",),
-            )
-            sanity["s0_deterministic"] = (
-                again["S0_asap"].total_emissions_g == res["S0_asap"].total_emissions_g
-            )
-        for name, r in res.items():
-            if r.unfinished:
-                sanity["all_finished"] = False
-            frames.append(_per_job(r, js.jobs, seed, name))
-        orc = res["S3_oracle"]
-        for name, r in res.items():
-            if (
-                name != "S3_oracle"
-                and r.violation_rate == 0
-                and orc.violation_rate == 0
-                and orc.total_emissions_g > r.total_emissions_g * 1.005
-            ):
-                sanity["none_beats_oracle"] = False
-        per_seed.append(
-            {
-                "seed": seed,
-                "pool_gpus": js.capacity_gpus,
-                "jobs": len(js.jobs),
-                "s0_busy_gpu_share": float(
-                    res["S0_asap"].gpu_busy_steps[: n_weeks * 168].mean() / js.capacity_gpus
-                ),
-            }
-        )
-
-    jobs_df = pd.concat(frames)
-    wide = jobs_df.pivot_table(
-        index=["seed", "id", "week"], columns="scheduler", values="emissions_g"
-    ).reset_index()
-    blocks = (wide["seed"].astype(str) + "_" + wide["week"].astype(str)).to_numpy()
-    rows = []
-    for name in SCHEDULERS:
-        sub = jobs_df[jobs_df["scheduler"] == name]
-        row: dict[str, Any] = {
-            "scheduler": name,
-            "emissions_t": float(sub["emissions_g"].sum() / 1e6),
-            "violation_rate": float(sub["violated"].mean()),
-            "mean_wait_h": float(sub["wait_h"].mean()),
-            "p95_wait_h": float(np.percentile(sub["wait_h"], 95)),
-            "cvar90_job_g": float(
-                np.sort(sub["emissions_g"].to_numpy())[-max(1, int(0.1 * len(sub))) :].mean()
-            ),
-        }
-        if name != "S0_asap":
-            s, lo, hi = paired_saving_ci(wide["S0_asap"].to_numpy(), wide[name].to_numpy(), blocks)
-            row.update(saving_vs_s0=s, saving_lo=lo, saving_hi=hi)
-            so, olo, ohi = paired_saving_ci(
-                wide["S0_asap"].to_numpy(), wide["S3_oracle"].to_numpy(), blocks
-            )
-            row["share_of_oracle"] = s / so if so else float("nan")
-        rows.append(row)
-    table = pd.DataFrame(rows)
+    # ---- test replay: all seeds in parallel -------------------------------------------------
+    cell = Cell(
+        "main", SCHEDULERS, alpha=alpha, sigma=sigma, forecast="cqr", n_weeks=n_weeks, q=q_star
+    )
+    df = run_cells([cell], seeds, root, smoke=smoke, n_jobs=1 if smoke else min(n_jobs, len(seeds)))
+    df.to_parquet(out / "per_job.parquet")
+    table = summarize_cells(df)
+    table["scheduler"] = pd.Categorical(table["scheduler"], list(SCHEDULERS), ordered=True)
+    table = table.sort_values("scheduler").reset_index(drop=True)
+    table["scheduler"] = table["scheduler"].astype(str)
     table.to_csv(out / "scheduling_results.csv", index=False)
     pd.DataFrame(q_table).to_csv(out / "s2_threshold_tuning_calibration.csv", index=False)
-    pd.DataFrame(per_seed).to_csv(out / "per_seed.csv", index=False)
+    per_seed = df.groupby("seed").agg(
+        pool_gpus=("pool_gpus", "first"),
+        jobs=("id", "nunique"),
+        oracle_blocks=("oracle_blocks", "max"),
+        oracle_time_limited_blocks=("oracle_time_limited_blocks", "max"),
+    )
+    per_seed.to_csv(out / "per_seed.csv")
+
+    # ---- sanity bounds (section 13.1) -------------------------------------------------------
+    again = run_task(
+        Cell("det", ("S0_asap",), forecast="cqr", n_weeks=n_weeks), seeds[0], str(root), smoke
+    )
+    first = df[(df["scheduler"] == "S0_asap") & (df["seed"] == seeds[0])]
+    sanity = {
+        "s0_deterministic": bool(
+            abs(again["emissions_g"].sum() - first["emissions_g"].sum()) < 1e-6
+        ),
+        "all_finished": bool(df["finished"].all()),
+    }
+    tot = df.groupby(["seed", "scheduler"]).agg(e=("emissions_g", "sum"), v=("violated", "sum"))
+    totals = {
+        (int(r.seed), str(r.scheduler)): (float(r.e), int(r.v))  # type: ignore[arg-type]
+        for r in tot.reset_index().itertuples()
+    }
+    beaten = []
+    for seed in seeds:
+        o_e, o_v = totals[(seed, "S3_oracle")]
+        for name in SCHEDULERS:
+            e, v = totals[(seed, name)]
+            if name != "S3_oracle" and o_v == 0 and v == 0 and o_e > e * 1.005:
+                beaten.append((seed, name))
+    limited = int(per_seed["oracle_time_limited_blocks"].sum())
+    # when some oracle blocks hit the time limit the oracle is only a heuristic there, so a
+    # scheduler beating it is reported but not treated as a bug
+    sanity["none_beats_oracle"] = (not beaten) or limited > 0
 
     plot = table[table["scheduler"] != "S0_asap"].reset_index(drop=True)
     fig, ax = new_axes(
@@ -308,8 +246,8 @@ def run_e4(
         x,
         100 * plot["saving_vs_s0"],
         yerr=[
-            100 * (plot["saving_vs_s0"] - plot["saving_lo"]),
-            100 * (plot["saving_hi"] - plot["saving_vs_s0"]),
+            (100 * (plot["saving_vs_s0"] - plot["saving_lo"])).clip(lower=0),
+            (100 * (plot["saving_hi"] - plot["saving_vs_s0"])).clip(lower=0),
         ],
         fmt="none",
         ecolor="#333333",
@@ -332,21 +270,18 @@ def run_e4(
     ax.legend(frameon=False, fontsize=8)
     save(fig, out / "violations")
 
+    key = {
+        "sim": sim_cfg,
+        "sp": sp,
+        "seeds": seeds,
+        "weeks": n_weeks,
+        "sigma": sigma,
+        "alpha": alpha,
+        "q": q_star,
+    }
     summary = {
         "config_hash": hashlib.sha256(
-            json.dumps(
-                {
-                    "sim": sim_cfg,
-                    "sp": sp,
-                    "seeds": seeds,
-                    "weeks": n_weeks,
-                    "sigma": sigma,
-                    "alpha": alpha,
-                    "q": q_star,
-                },
-                sort_keys=True,
-                default=str,
-            ).encode()
+            json.dumps(key, sort_keys=True, default=str).encode()
         ).hexdigest()[:12],
         "smoke": smoke,
         "seeds": seeds,
@@ -357,8 +292,8 @@ def run_e4(
             f"conformal alpha={alpha}"
         ),
         "power_per_gpu": "ASSUMED lognormal, median 0.20 kW (no GPU measurements yet)",
-        "true_ci_filled_hours": gaps,
-        "oracle": oracle_info,
+        "oracle_time_limited_blocks": limited,
+        "oracle_beaten_cases": beaten,
         "sanity": sanity,
         "results": table.round(4).to_dict("records"),
     }

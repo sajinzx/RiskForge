@@ -35,6 +35,7 @@ class Cell:
     mpc_use_bounds: bool = True
     n_weeks: int = 4
     q: float = 0.3
+    oracle_time_limit_s: float = 120.0
     overrides: tuple[tuple[str, Any], ...] = field(default_factory=tuple)  # sim.yaml overrides
 
 
@@ -111,7 +112,7 @@ def run_task(cell: Cell, seed: int, root: str, smoke: bool) -> pd.DataFrame:
     res, info = evaluate_schedulers(
         js, ci, replay, sigma=cell.sigma, alpha=cell.alpha, q=cell.q, dt_h=dt_h, seed=seed,
         only=cell.schedulers, cal_sigma=cell.cal_sigma, mpc_ci_mode=cell.mpc_ci_mode,
-        mpc_use_bounds=cell.mpc_use_bounds,
+        mpc_use_bounds=cell.mpc_use_bounds, oracle_time_limit_s=cell.oracle_time_limit_s,
     )  # fmt: skip
     frames = []
     spw = int(round(168 / dt_h))
@@ -132,6 +133,10 @@ def run_task(cell: Cell, seed: int, root: str, smoke: bool) -> pd.DataFrame:
                     "fallbacks": info.get("mpc_fallbacks", 0) if name == "S4_mpc" else 0,
                     "solves": info.get("mpc_solves", 0) if name == "S4_mpc" else 0,
                     "pool_gpus": js.capacity_gpus,
+                    "oracle_blocks": info.get("oracle_blocks", 0) if name == "S3_oracle" else 0,
+                    "oracle_time_limited_blocks": (
+                        info.get("oracle_non_optimal_blocks", 0) if name == "S3_oracle" else 0
+                    ),
                 }
             )
         )

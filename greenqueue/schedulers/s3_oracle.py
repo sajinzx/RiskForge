@@ -2,9 +2,12 @@
 
 Rigid jobs use start variables ``y[j,s]`` (contiguous by construction); interruptible jobs use run
 variables ``x[j,t]`` with restart counting and a work constraint that includes checkpoint overhead.
-Lateness is allowed but penalised so the model is always feasible; a job finished late is a
-violation in the simulator. The horizon is solved in consecutive blocks of ``block_steps`` arrival
-steps (the guide's rolling windows); GPUs used by earlier blocks are reserved for later ones.
+Lateness is allowed only when unavoidable: each block first looks for a plan with no late job-steps,
+else finds the minimum lateness, and then minimises carbon with that lateness fixed (lexicographic,
+so big-M weights never distort the solver gap). A job finished late is a violation in the simulator.
+
+The horizon is solved in consecutive blocks of ``block_steps`` arrival steps (the guide's rolling
+windows); GPUs used by earlier blocks are reserved for later ones.
 The plan is replayed through the simulator, which does the exact accounting.
 
 Approximation: when checkpoint overhead is non-zero the MILP charges the partial last step as a
@@ -15,6 +18,7 @@ per resume). With zero overhead and whole-step durations the bound is exact.
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -22,8 +26,6 @@ import numpy as np
 import pulp
 
 from greenqueue.core.types import Decision, ForecastBundle, Job, JobView
-
-LATE_PENALTY_G = 1.0e7  # per late job-step, dwarfs any carbon difference
 
 
 @dataclass
@@ -36,21 +38,27 @@ def _solver(time_limit_s: float, gap: float) -> pulp.LpSolver:
     return pulp.HiGHS(msg=False, timeLimit=time_limit_s, gapRel=gap)
 
 
-def _solve_block(
+def _build(
     jobs: Sequence[Job],
     ci: np.ndarray,
     spare: np.ndarray,
     dt_h: float,
     late_max: int,
-    time_limit_s: float,
-    gap: float,
-) -> tuple[dict[str, list[int]], bool]:
+    mode: str,
+    late_bound: float,
+) -> tuple[
+    pulp.LpProblem, dict[str, dict[int, pulp.LpVariable]], dict[str, dict[int, pulp.LpVariable]]
+]:
+    """Block model. ``mode='late'`` minimises late steps; ``'carbon'`` minimises carbon with the
+    number of late job-steps capped at ``late_bound`` (lexicographic: lateness first)."""
     n_steps = len(ci)
     prob = pulp.LpProblem("oracle", pulp.LpMinimize)
-    cost_terms: list[pulp.LpAffineExpression] = []
+    carbon: list[pulp.LpAffineExpression] = []
+    late: list[pulp.LpAffineExpression] = []
     usage: dict[int, list[pulp.LpAffineExpression]] = {}
     starts: dict[str, dict[int, pulp.LpVariable]] = {}
     runs: dict[str, dict[int, pulp.LpVariable]] = {}
+    csum = np.concatenate([[0.0], np.cumsum(ci)])
 
     for j in jobs:
         d = j.duration_steps
@@ -65,11 +73,10 @@ def _solve_block(
             runs[j.id] = x
             o = j.checkpoint_overhead_h / dt_h
             for t in range(lo, hi + 1):
-                prev = x.get(t - 1, 0)
-                prob += z[t] >= x[t] - prev
-                cost_terms.append(
-                    x[t] * (e_step * float(ci[t]) + (LATE_PENALTY_G if t + 1 > dl else 0.0))
-                )
+                prob += z[t] >= x[t] - x.get(t - 1, 0)
+                carbon.append(x[t] * (e_step * float(ci[t])))
+                if t + 1 > dl:
+                    late.append(x[t] * 1.0)
                 usage.setdefault(t, []).append(j.gpus * x[t])
             prob += pulp.lpSum(x.values()) >= d + o * (pulp.lpSum(z.values()) - 1)
         else:
@@ -82,31 +89,72 @@ def _solve_block(
             }
             starts[j.id] = y
             prob += pulp.lpSum(y.values()) == 1
-            csum = np.concatenate([[0.0], np.cumsum(ci)])
             for s, var in y.items():
-                late = max(0, s + d - dl)
-                cost_terms.append(
-                    var * (e_step * float(csum[s + d] - csum[s]) + LATE_PENALTY_G * late)
-                )
+                carbon.append(var * (e_step * float(csum[s + d] - csum[s])))
+                if s + d > dl:
+                    late.append(var * float(s + d - dl))
                 for t in range(s, s + d):
                     usage.setdefault(t, []).append(j.gpus * var)
 
-    prob += pulp.lpSum(cost_terms)
     for t, terms in usage.items():
         prob += pulp.lpSum(terms) <= float(spare[t])
-    prob.solve(_solver(time_limit_s, gap))
-    status = pulp.LpStatus[prob.status]
-    if status in ("Infeasible", "Unbounded", "Undefined"):
-        raise RuntimeError(f"oracle block failed with status {status}")
+    if mode == "late":
+        prob += pulp.lpSum(late) if late else pulp.lpSum([0])
+    else:
+        prob += pulp.lpSum(carbon)
+        if late:
+            prob += pulp.lpSum(late) <= late_bound
+    return prob, starts, runs
 
+
+def _extract(
+    jobs: Sequence[Job],
+    starts: dict[str, dict[int, pulp.LpVariable]],
+    runs: dict[str, dict[int, pulp.LpVariable]],
+) -> dict[str, list[int]]:
+    dur = {j.id: j.duration_steps for j in jobs}
     plan: dict[str, list[int]] = {}
     for jid, y in starts.items():
-        s0 = next(s for s, v in y.items() if (v.value() or 0) > 0.5)
-        jd = next(j for j in jobs if j.id == jid).duration_steps
-        plan[jid] = list(range(s0, s0 + jd))
+        chosen = [s for s, v in y.items() if (v.value() or 0) > 0.5]
+        if not chosen:
+            raise RuntimeError(f"solver returned no start for job {jid}")
+        plan[jid] = list(range(chosen[0], chosen[0] + dur[jid]))
     for jid, x in runs.items():
-        plan[jid] = [t for t, v in x.items() if (v.value() or 0) > 0.5]
-    return plan, status == "Optimal"
+        steps = [t for t, v in x.items() if (v.value() or 0) > 0.5]
+        if not steps:
+            raise RuntimeError(f"solver returned no run steps for job {jid}")
+        plan[jid] = steps
+    return plan
+
+
+def _solve_block(
+    jobs: Sequence[Job],
+    ci: np.ndarray,
+    spare: np.ndarray,
+    dt_h: float,
+    late_max: int,
+    time_limit_s: float,
+    gap: float,
+) -> tuple[dict[str, list[int]], bool]:
+    """Lexicographic solve: no lateness if possible, else minimum lateness; then minimum carbon."""
+    t0 = time.perf_counter()
+    prob, starts, runs = _build(jobs, ci, spare, dt_h, late_max, "carbon", 0.0)
+    prob.solve(_solver(time_limit_s, gap))
+    status = pulp.LpStatus[prob.status]
+    if status == "Infeasible":  # some lateness is unavoidable: find the minimum, then re-solve
+        p1, _, _ = _build(jobs, ci, spare, dt_h, late_max, "late", 0.0)
+        p1.solve(_solver(time_limit_s / 2, 1e-6))
+        if pulp.LpStatus[p1.status] in ("Infeasible", "Unbounded", "Undefined"):
+            raise RuntimeError(f"oracle lateness model failed: {pulp.LpStatus[p1.status]}")
+        bound = math.ceil(float(pulp.value(p1.objective) or 0.0) - 1e-6)
+        prob, starts, runs = _build(jobs, ci, spare, dt_h, late_max, "carbon", float(bound))
+        prob.solve(_solver(time_limit_s, gap))
+        status = pulp.LpStatus[prob.status]
+    if status in ("Infeasible", "Unbounded", "Undefined"):
+        raise RuntimeError(f"oracle block failed with status {status}")
+    plan = _extract(jobs, starts, runs)
+    hit_limit = (time.perf_counter() - t0) >= 0.95 * time_limit_s
+    return plan, status == "Optimal" and not hit_limit
 
 
 def solve_oracle(

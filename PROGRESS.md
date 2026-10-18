@@ -122,3 +122,10 @@ approximation from the 90% interval), perfect energy/duration, static CQR carbon
 not run (F4 weather model not built). E7: slack x load grid for S1, simple S4 and oracle plus interruptibility 0/1; zone
 axis not run (GB only). Both use the SYNTHETIC duration-noise estimator. Smoke tests pass.
 Status: code done; full runs recorded below.
+
+## T4.3b Oracle: lexicographic lateness, E4 on the parallel runner
+Probe on 150-job weekly blocks at 60% load: blocks took 10-120 s; some hit the time limit and are now flagged
+(`oracle_time_limited_blocks`). Single-phase penalty weights of 1e7 per late step made the solver's 1% gap meaningless for
+carbon; replaced by: feasibility with zero lateness, else minimum lateness, then minimum carbon with lateness fixed.
+E4 now runs seeds in parallel through sweeps.run_cells and records oracle-quality counters.
+Status: done; full E4 rerun below.
