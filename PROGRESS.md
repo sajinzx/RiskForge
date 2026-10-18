@@ -24,3 +24,10 @@ Notes: emission factors in configs/emission_factors.yaml; entries with status "a
 other, peat, coal-derived gas, storage) are not from the IPCC table (see QUESTIONS.md Q2).
 The ENTSO-E downloader is untested against the live API (no token); only mocked-query logic is tested.
 Status: done
+
+## T2.1 + T2.4 Features, metrics, conformal
+Acceptance: leakage test (overwrite data from issue time on, features unchanged) passes; split conformal and
+CQR hit 90%/80% within 2 pp on synthetic iid data (n=4000); pinball hand-checked.
+Convention: horizon h targets label T+(h-1)h; last known label is T-1h. Seasonal-naive uses the most recent
+same-hour value known at T (k=ceil(h/24) days back).
+Status: done
