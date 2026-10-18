@@ -35,9 +35,10 @@ def _scores(d: pd.DataFrame, lo: np.ndarray, hi: np.ndarray) -> dict[int, np.nda
 
 def run_e2(root: Path, *, smoke: bool = False, seed: int = 0) -> dict[str, Any]:
     split_cfg = yaml.safe_load((root / "configs" / "splits.yaml").read_text(encoding="utf8"))
+    raw = split_cfg["smoke"] if smoke else split_cfg
     sp = {
-        k: pd.Timestamp(v, tz="UTC")
-        for k, v in (split_cfg["smoke"] if smoke else split_cfg).items()
+        k: pd.Timestamp(raw[k], tz="UTC")
+        for k in ("train_start", "calib_start", "test_start", "test_end")
     }
     e1_dir = root / "results" / ("e1_smoke" if smoke else "e1")
     out = root / "results" / ("e2_smoke" if smoke else "e2")
