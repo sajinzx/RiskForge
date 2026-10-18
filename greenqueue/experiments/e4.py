@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -189,8 +190,17 @@ def run_e4(
     q_star, q_table = tune_threshold_q(c_set, c_ci, c_replay, sigma=sigma, alpha=alpha, dt_h=dt_h)
 
     # ---- test replay: all seeds in parallel -------------------------------------------------
+    oracle_limit = float(os.environ.get("GQ_ORACLE_LIMIT", "120"))  # seconds per block
+    oracle_limit = float(os.environ.get("GQ_ORACLE_LIMIT", "120"))  # seconds per oracle block
     cell = Cell(
-        "main", SCHEDULERS, alpha=alpha, sigma=sigma, forecast="cqr", n_weeks=n_weeks, q=q_star
+        "main",
+        SCHEDULERS,
+        alpha=alpha,
+        sigma=sigma,
+        forecast="cqr",
+        n_weeks=n_weeks,
+        q=q_star,
+        oracle_time_limit_s=oracle_limit,
     )
     df = run_cells([cell], seeds, root, smoke=smoke, n_jobs=1 if smoke else min(n_jobs, len(seeds)))
     df.to_parquet(out / "per_job.parquet")
@@ -292,6 +302,7 @@ def run_e4(
             f"conformal alpha={alpha}"
         ),
         "power_per_gpu": "ASSUMED lognormal, median 0.20 kW (no GPU measurements yet)",
+        "oracle_time_limit_s_per_block": oracle_limit,
         "oracle_time_limited_blocks": limited,
         "oracle_beaten_cases": beaten,
         "sanity": sanity,
