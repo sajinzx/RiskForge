@@ -154,3 +154,45 @@ def run_cells(
 
 def with_overrides(cell: Cell, **kw: Any) -> Cell:
     return replace(cell, overrides=tuple(sorted({**dict(cell.overrides), **kw}.items())))
+
+
+def summarize_cells(df: pd.DataFrame, oracle_tag: str | None = None) -> pd.DataFrame:
+    """Per (tag, scheduler): violation rate, saving vs ASAP and share of the oracle saving.
+
+    Savings are paired with the ASAP run of the same tag and seeds (same jobs), with
+    block-bootstrap CIs over (seed, week). The oracle comes from ``oracle_tag`` if given, else
+    from the same tag.
+    """
+    from greenqueue.eval.bootstrap import paired_saving_ci, rate_ci
+
+    df = df.copy()
+    df["block"] = df["seed"].astype(str) + "_" + df["week"].astype(str)
+    rows = []
+    for tag, tg in df.groupby("tag"):
+        s0 = tg[tg["scheduler"] == "S0_asap"].set_index(["seed", "id"])
+        orc_src = df[df["tag"] == (oracle_tag or tag)]
+        orc = orc_src[orc_src["scheduler"] == "S3_oracle"].set_index(["seed", "id"])
+        for sched, g in tg.groupby("scheduler"):
+            rate, lo, hi = rate_ci(g["violated"].to_numpy(), g["block"].to_numpy())
+            gi = g.set_index(["seed", "id"])
+            base = s0.loc[gi.index, "emissions_g"].to_numpy()
+            sav, slo, shi = paired_saving_ci(
+                base, gi["emissions_g"].to_numpy(), gi["block"].to_numpy()
+            )
+            share = np.nan
+            if len(orc):
+                o_sav = 1.0 - float(orc.loc[gi.index, "emissions_g"].sum()) / float(base.sum())
+                share = sav / o_sav if o_sav else np.nan
+            rows.append(
+                {
+                    "tag": tag, "scheduler": sched, "violation_rate": rate, "violation_lo": lo,
+                    "violation_hi": hi, "saving_vs_s0": sav, "saving_lo": slo, "saving_hi": shi,
+                    "share_of_oracle": share, "mean_wait_h": float(g["wait_h"].mean()),
+                    "p95_wait_h": float(np.percentile(g["wait_h"], 95)),
+                    "pool_gpus": float(g["pool_gpus"].mean()),
+                    "mpc_fallbacks": int(g.groupby("seed")["fallbacks"].first().sum()),
+                    "mpc_solves": int(g.groupby("seed")["solves"].first().sum()),
+                    "unfinished": int((~g["finished"]).sum()),
+                }
+            )  # fmt: skip
+    return pd.DataFrame(rows)

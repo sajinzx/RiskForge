@@ -115,3 +115,10 @@ S1 (no bound), S0 and the oracle. The duration estimator is a SYNTHETIC lognorma
 Real E2 result (test 2024-01..2026-09, nominal 90%): coverage static CQR 0.869, split conformal 0.907, ACI 0.900;
 worst 30-day coverage 0.697 / 0.823 / 0.852; ACI intervals ~35% wider than CQR. gamma=0.01 chosen on the calibration year.
 Status: code and smoke tests done; full run recorded below.
+
+## T10.1 E6 ablations and E7 sensitivity (code)
+E6 variants of the robust MPC at 30% load, alpha 0.05: full, no conformal bounds, carbon point only, carbon CVaR (normal
+approximation from the 90% interval), perfect energy/duration, static CQR carbon, perfect carbon forecast. No-weather is
+not run (F4 weather model not built). E7: slack x load grid for S1, simple S4 and oracle plus interruptibility 0/1; zone
+axis not run (GB only). Both use the SYNTHETIC duration-noise estimator. Smoke tests pass.
+Status: code done; full runs recorded below.
