@@ -82,3 +82,15 @@ NOT tested on a GPU: workloads.py (torch runners) and NvmlSampler; they need the
 Deviation: idle power is measured once per config (30 s), not before every repeat, to keep the sweep near 3 hours.
 GPU peak-FLOP and TDP values in configs/gpus.yaml are from memory: owner must verify.
 Status: code done; measurements pending (owner).
+
+## T3.3 Energy models, validation, conformal (+ T8.2 gray-box early)
+Built: measurement aggregation (per-config means/stds, MAD outlier flag), EN0 log-linear, EN1 LightGBM, EN2 gray-box,
+random / LOMO / LOGO folds, group-conditional conformal on log-residuals (family and GPU, pooled fallback below 20 points),
+E3 experiment. Gray-box extensions beyond the guide (documented in the class): a baseline-power parameter p0 and
+shrunk per-family efficiency multipliers. Gray-box is compute-bound only: real LLM decoding is memory-bound and will
+likely fit poorly until a memory term is added (needs bytes/step in the harness).
+IMPORTANT: no real energy data exists yet. Every energy result so far is SYNTHETIC (generator follows compute-bound physics,
+so accuracy there is circular and proves nothing). `greenqueue run e3` fails with a clear error until measurements exist;
+`greenqueue run e3 --smoke` writes to results/e3_SYNTHETIC. On synthetic data conformal coverage drops under LOMO/LOGO
+(about 0.65-0.70 at nominal 0.90), the expected shift effect.
+Status: code done, real measurements pending (owner, T3.2).

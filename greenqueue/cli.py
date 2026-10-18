@@ -23,7 +23,9 @@ def version() -> None:
 @app.command()
 def run(
     experiment: str = typer.Argument(..., help="Experiment id, e.g. e1 or e4"),
-    smoke: bool = typer.Option(False, help="Short, fast version for checking the pipeline"),
+    smoke: bool = typer.Option(
+        False, help="Short version to check the pipeline (e3: synthetic data)"
+    ),
     trials: int | None = typer.Option(None, help="Override Optuna trials (e1)"),
     root: Path = typer.Option(Path("."), help="Project root"),
 ) -> None:
@@ -33,6 +35,10 @@ def run(
         from greenqueue.experiments.e1 import run_e1
 
         summary = run_e1(root.resolve(), smoke=smoke, trials=trials)
+    elif name == "e3":
+        from greenqueue.experiments.e3 import run_e3
+
+        summary = run_e3(root.resolve(), synthetic=smoke)
     elif name == "e4":
         from greenqueue.experiments.e4 import run_e4
 
