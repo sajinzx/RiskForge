@@ -19,14 +19,21 @@ import yaml
 from greenqueue.core.types import Job, Scheduler
 from greenqueue.eval.bootstrap import paired_saving_ci
 from greenqueue.eval.plots import PALETTE, new_axes, save
-from greenqueue.experiments.harness import ForecastReplay, SyntheticEstimator, make_provider
+from greenqueue.experiments.harness import (
+    ForecastReplay,
+    SyntheticEstimator,
+    make_provider,
+    without_bounds,
+)
 from greenqueue.schedulers.baselines import Asap, GreedyWindow, Threshold
 from greenqueue.schedulers.s3_oracle import PlanScheduler, solve_oracle
+from greenqueue.schedulers.s4_robust import RobustMPC
 from greenqueue.sim.simulator import SimResult, simulate
 from greenqueue.sim.traces import JobSet, load_alibaba_tasks, load_config, synthesize_jobs
 
 Q_GRID = (0.1, 0.2, 0.3, 0.4, 0.5)
 SCHEDULERS = ("S0_asap", "S1_greedy", "S2_threshold", "S3_oracle", "S4_simple")
+ALL_SCHEDULERS = (*SCHEDULERS, "S4_mpc")
 
 
 def _monday_on_or_after(ts: pd.Timestamp) -> pd.Timestamp:
@@ -53,9 +60,12 @@ def evaluate_schedulers(
     seed: int,
     only: tuple[str, ...] = SCHEDULERS,
     oracle_time_limit_s: float = 60.0,
+    cal_sigma: float | None = None,
+    mpc_ci_mode: str = "upper",
+    mpc_use_bounds: bool = True,
 ) -> tuple[dict[str, SimResult], dict[str, Any]]:
     """Run the requested schedulers on one job set; returns results and oracle info."""
-    est = SyntheticEstimator(jobset.jobs, sigma, alpha, dt_h, seed)
+    est = SyntheticEstimator(jobset.jobs, sigma, alpha, dt_h, seed, cal_sigma)
     provider = make_provider(replay, est)
     results: dict[str, SimResult] = {}
     info: dict[str, Any] = {}
@@ -75,6 +85,17 @@ def evaluate_schedulers(
                 dt_h=dt_h,
                 provider=provider,
             )
+    if "S4_mpc" in only:
+        mpc = RobustMPC(dt_h, ci_mode=mpc_ci_mode)  # type: ignore[arg-type]
+        results["S4_mpc"] = simulate(
+            jobset.jobs,
+            mpc,
+            true_ci,
+            capacity_gpus=jobset.capacity_gpus,
+            dt_h=dt_h,
+            provider=provider if mpc_use_bounds else without_bounds(provider),
+        )
+        info["mpc_solves"], info["mpc_fallbacks"] = mpc.solves, mpc.fallbacks
     if "S3_oracle" in only:
         plan, oinfo = solve_oracle(
             jobset.jobs, true_ci, jobset.capacity_gpus, dt_h, time_limit_s=oracle_time_limit_s
@@ -169,8 +190,14 @@ def run_e4(
     dt_h = float(sim_cfg["dt_h"])
 
     if tasks is None:
-        csv = root / "data" / "raw" / "traces" / "alibaba" / "x" / "pai_task_table.csv"
-        tasks = load_alibaba_tasks(csv, sim_cfg["min_duration_h"], sim_cfg["max_duration_h"])
+        cache = root / "data" / "processed" / "alibaba_tasks.parquet"
+        if cache.exists():
+            tasks = pd.read_parquet(cache)
+        else:
+            csv = root / "data" / "raw" / "traces" / "alibaba" / "x" / "pai_task_table.csv"
+            tasks = load_alibaba_tasks(csv, sim_cfg["min_duration_h"], sim_cfg["max_duration_h"])
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            tasks.to_parquet(cache)
     gb_ci = pd.read_parquet(root / "data" / "processed" / "gb_hourly.parquet")["ci"]
     fc = pd.read_parquet(e1_dir / "forecasts_F3_cqr90.parquet")
 

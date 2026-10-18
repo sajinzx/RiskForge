@@ -107,3 +107,11 @@ ACI per horizon bucket on CQR scores; an outcome is usable only once its target 
 change when unobserved outcomes are corrupted); synthetic shift test: static coverage < 0.75, ACI > 0.86. E2 picks gamma on
 the calibration year (scores from first half, ACI over second half) and compares U1/U2/U3 on the test period.
 Status: code and tests done; real run recorded below.
+
+## T9.2 E5 pipeline + parallel sweep runner
+sweeps.py runs (cell, seed) tasks in parallel (workers reload inputs from disk). E5 sweeps alpha in {0.01, 0.05, 0.1, 0.2}
+for simple S4 and the MPC S4, in a `calibrated` and a `shifted` (errors 1.6x larger than calibration) scenario, against
+S1 (no bound), S0 and the oracle. The duration estimator is a SYNTHETIC lognormal-noise stand-in (no energy model yet).
+Real E2 result (test 2024-01..2026-09, nominal 90%): coverage static CQR 0.869, split conformal 0.907, ACI 0.900;
+worst 30-day coverage 0.697 / 0.823 / 0.852; ACI intervals ~35% wider than CQR. gamma=0.01 chosen on the calibration year.
+Status: code and smoke tests done; full run recorded below.

@@ -60,3 +60,23 @@ def paired_saving_ci(
     a = (1 - level) / 2
     point = 1.0 - float(other.sum()) / float(base.sum())
     return float(point), float(np.quantile(est, a)), float(np.quantile(est, 1 - a))
+
+
+def rate_ci(
+    events: np.ndarray,
+    blocks: np.ndarray,
+    *,
+    n_resamples: int = 1000,
+    level: float = 0.95,
+    seed: int = 0,
+) -> tuple[float, float, float]:
+    """Share of True in ``events`` with a block-bootstrap CI (blocks resampled whole)."""
+    e = np.asarray(events, dtype=float)
+    _, inv = np.unique(blocks, return_inverse=True)
+    n_blocks = int(np.max(inv)) + 1
+    s = np.bincount(inv, weights=e, minlength=n_blocks)
+    c = np.bincount(inv, minlength=n_blocks).astype(float)
+    pick = np.random.default_rng(seed).integers(0, n_blocks, size=(n_resamples, n_blocks))
+    est = s[pick].sum(axis=1) / c[pick].sum(axis=1)
+    a = (1 - level) / 2
+    return float(e.mean()), float(np.quantile(est, a)), float(np.quantile(est, 1 - a))

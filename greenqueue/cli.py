@@ -43,6 +43,10 @@ def run(
         from greenqueue.experiments.e3 import run_e3
 
         summary = run_e3(root.resolve(), synthetic=smoke)
+    elif name == "e5":
+        from greenqueue.experiments.e5 import run_e5
+
+        summary = run_e5(root.resolve(), smoke=smoke)
     elif name == "e4":
         from greenqueue.experiments.e4 import run_e4
 

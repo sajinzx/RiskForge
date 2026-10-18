@@ -10,6 +10,7 @@ import pandas as pd
 
 from greenqueue.carbon.conformal import conformal_quantile
 from greenqueue.core.types import CarbonForecast, EnergyEstimate, ForecastBundle, Job, JobView
+from greenqueue.sim.simulator import BundleProvider
 
 
 class ForecastReplay:
@@ -52,13 +53,21 @@ class SyntheticEstimator:
     """
 
     def __init__(
-        self, jobs: Sequence[Job], sigma: float, alpha: float, dt_h: float, seed: int
+        self,
+        jobs: Sequence[Job],
+        sigma: float,
+        alpha: float,
+        dt_h: float,
+        seed: int,
+        cal_sigma: float | None = None,
     ) -> None:
         rng = np.random.default_rng(seed + 10_000)
         self.noise = {j.id: float(rng.normal(0.0, sigma)) for j in jobs}
-        cal = rng.normal(0.0, sigma, size=500)
+        # cal_sigma != sigma simulates a calibration set that does not match deployment (shift)
+        cal_sd = sigma if cal_sigma is None else cal_sigma
+        cal = rng.normal(0.0, cal_sd, size=500)
         # score = log(true / estimate) = -noise; upper bound multiplies by exp(q)
-        self.q_log = conformal_quantile(-cal, alpha) if sigma > 0 else 0.0
+        self.q_log = conformal_quantile(-cal, alpha) if cal_sd > 0 else 0.0
         self.by_id = {j.id: j for j in jobs}
         self.dt_h = dt_h
 
@@ -76,8 +85,31 @@ class SyntheticEstimator:
         return out
 
 
-def make_provider(replay: ForecastReplay, estimator: SyntheticEstimator):  # type: ignore[no-untyped-def]
+def make_provider(replay: ForecastReplay, estimator: SyntheticEstimator) -> BundleProvider:
     def provide(t: int, views: list[JobView]) -> ForecastBundle:
         return ForecastBundle(replay.at(t), estimator.estimate(views))
+
+    return provide
+
+
+def without_bounds(provider: BundleProvider) -> BundleProvider:
+    """Ablation: strip every uncertainty bound, leaving point forecasts and point estimates."""
+
+    def provide(t: int, views: list[JobView]) -> ForecastBundle:
+        b = provider(t, views)
+        c = b.carbon
+        carbon = CarbonForecast(c.start_step, c.point, c.point, c.point)
+        energy = {
+            k: EnergyEstimate(
+                k,
+                e.energy_point,
+                e.energy_point,
+                e.energy_point,
+                e.duration_point_h,
+                e.duration_point_h,
+            )
+            for k, e in b.energy.items()
+        }
+        return ForecastBundle(carbon, energy)
 
     return provide
