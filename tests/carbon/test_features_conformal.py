@@ -85,3 +85,74 @@ def test_cqr_corrects_overconfident_quantiles() -> None:
 def test_pinball_known_value() -> None:
     assert pinball(np.array([10.0]), np.array([8.0]), 0.9) == pytest.approx(1.8)
     assert pinball(np.array([8.0]), np.array([10.0]), 0.9) == pytest.approx(0.2)
+
+
+def _shifted_stream(n_issues: int = 600, seed: int = 0):  # type: ignore[no-untyped-def]
+    """Hourly-issue stream whose noise doubles halfway (a regime shift)."""
+    from greenqueue.carbon.features import HOUR
+
+    rng = np.random.default_rng(seed)
+    issues = pd.date_range("2024-01-01", periods=n_issues, freq="12h", tz="UTC")
+    rows = []
+    for k, t in enumerate(issues):
+        sd = 1.0 if k < n_issues // 2 else 2.5
+        for hh in range(1, 49):
+            rows.append((t, hh, t + (hh - 1) * HOUR, rng.normal(0, sd)))
+    df = pd.DataFrame(rows, columns=["issue_time", "h", "target_time", "y"])
+    df["lo"], df["hi"] = -1.645, 1.645  # correct for sd=1 only
+    return df
+
+
+def test_aci_restores_coverage_after_a_shift_where_static_cqr_fails() -> None:
+    from greenqueue.carbon.conformal import aci_intervals
+
+    df = _shifted_stream()
+    first = df[df["issue_time"] < df["issue_time"].iloc[len(df) // 2]]
+    cal = {
+        int(b): np.maximum(g["lo"] - g["y"], g["y"] - g["hi"]).to_numpy()
+        for b, g in first.groupby(horizon_bucket(first["h"].to_numpy()))
+    }
+    second = df[df["issue_time"] >= df["issue_time"].iloc[len(df) // 2]].reset_index(drop=True)
+    y = second["y"].to_numpy()
+    static = float(np.mean((y >= second["lo"]) & (y <= second["hi"])))
+    lo, hi, used = aci_intervals(
+        second["issue_time"].to_numpy(),
+        second["h"].to_numpy(),
+        second["target_time"].to_numpy(),
+        y,
+        second["lo"].to_numpy(),
+        second["hi"].to_numpy(),
+        cal,
+        alpha=0.1,
+        gamma=0.02,
+    )
+    adaptive = float(np.mean((y >= lo) & (y <= hi)))
+    assert static < 0.75 and adaptive > 0.86
+    assert used.min() < 0.1  # the level really adapted downwards (wider intervals)
+
+
+def test_aci_never_uses_outcomes_that_are_not_yet_observed() -> None:
+    """Corrupting outcomes not yet observed at an issue time must not change that interval."""
+    from greenqueue.carbon.conformal import aci_intervals
+
+    df = _shifted_stream(n_issues=60)
+    cal = {b: np.linspace(-1, 3, 200) for b in range(4)}
+    args = (df["issue_time"].to_numpy(), df["h"].to_numpy(), df["target_time"].to_numpy())
+    base = aci_intervals(
+        *args,
+        df["y"].to_numpy(),
+        df["lo"].to_numpy(),
+        df["hi"].to_numpy(),
+        cal,
+        alpha=0.1,
+        gamma=0.05,
+    )
+    t_cut = df["issue_time"].iloc[48 * 20]
+    y2 = df["y"].to_numpy().copy()
+    y2[(df["target_time"] + HOUR > t_cut).to_numpy()] = 1e6  # outcomes unknown at t_cut
+    alt = aci_intervals(
+        *args, y2, df["lo"].to_numpy(), df["hi"].to_numpy(), cal, alpha=0.1, gamma=0.05
+    )
+    before = (df["issue_time"] <= t_cut).to_numpy()
+    np.testing.assert_array_equal(base[0][before], alt[0][before])
+    np.testing.assert_array_equal(base[1][before], alt[1][before])

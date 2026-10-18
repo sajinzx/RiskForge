@@ -101,3 +101,9 @@ Alibaba tasks set the pool size, so capacity never bound and the comparison was 
 at 8 (configs/sim.yaml max_job_gpus; capped jobs counted in meta). The uncapped run is kept in results/e4_superseded_uncapped
 for reference and must not be quoted.
 Status: fixed; E4 rerun below.
+
+## T7.4 ACI with delayed feedback + E2
+ACI per horizon bucket on CQR scores; an outcome is usable only once its target hour ended (test proves intervals do not
+change when unobserved outcomes are corrupted); synthetic shift test: static coverage < 0.75, ACI > 0.86. E2 picks gamma on
+the calibration year (scores from first half, ACI over second half) and compares U1/U2/U3 on the test period.
+Status: code and tests done; real run recorded below.

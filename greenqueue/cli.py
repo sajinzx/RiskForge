@@ -35,6 +35,10 @@ def run(
         from greenqueue.experiments.e1 import run_e1
 
         summary = run_e1(root.resolve(), smoke=smoke, trials=trials)
+    elif name == "e2":
+        from greenqueue.experiments.e2 import run_e2
+
+        summary = run_e2(root.resolve(), smoke=smoke)
     elif name == "e3":
         from greenqueue.experiments.e3 import run_e3
 
