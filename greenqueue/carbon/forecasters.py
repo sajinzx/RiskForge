@@ -92,10 +92,11 @@ class LGBQuantileForecaster:
         quantiles: tuple[float, ...] = QUANTILES,
         use_neso: bool = False,
         seed: int = 0,
+        weather_cols: tuple[str, ...] = (),
     ) -> None:
         self.params = {**DEFAULT_LGB_PARAMS, **(params or {})}
         self.quantiles = quantiles
-        self.cols = feature_columns(use_neso)
+        self.cols = feature_columns(use_neso, weather_cols)
         self.seed = seed
         self.models: dict[float, lgb.LGBMRegressor] = {}
 

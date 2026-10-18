@@ -20,3 +20,11 @@ Not yet obtained (blocked on the owner):
 
 Processed files derived from the above (not committed): `data/processed/gb_hourly.parquet`,
 `data/processed/quality_report_GB.json`, `data/processed/alibaba_tasks.parquet`.
+
+## Added 2026-10-18: Open-Meteo archived forecasts (GB)
+
+| Dataset | Source | Fetched | File | SHA-256 | Terms |
+|---|---|---|---|---|---|
+| Wind 100 m, shortwave radiation, 2 m temperature, cloud cover at 5 GB points, forecast issued 2 days before the target hour (`previous_day2`), hourly 2024-03-08 to 2026-09-30 | Open-Meteo Previous Runs API, `https://previous-runs-api.open-meteo.com/v1/forecast` | 2026-10-18 | `data/raw/weather/GB_previous_day2.parquet` | `06d984a70ba26623600219605a5d3a60e6902ed177fb949bfe7fa6cab31c5058` | OWNER TO VERIFY (free for non-commercial use per the guide; attribution requirements not checked) |
+
+The archive only starts around 2024-03 (probed: no values before 2024-03-07), so the weather model uses a shorter split (`configs/splits.yaml`, `weather`).

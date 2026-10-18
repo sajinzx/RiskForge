@@ -25,7 +25,7 @@ def horizon_bucket(h: np.ndarray | int) -> np.ndarray:
     return np.searchsorted(np.array(BUCKET_EDGES), np.asarray(h), side="left")
 
 
-def feature_columns(use_neso: bool = False) -> list[str]:
+def feature_columns(use_neso: bool = False, weather: tuple[str, ...] = ()) -> list[str]:
     cols = [f"lag_{k}" for k in LAGS]
     for w in ROLL_WINDOWS:
         cols += [f"roll_mean_{w}", f"roll_std_{w}"]
@@ -33,6 +33,7 @@ def feature_columns(use_neso: bool = False) -> list[str]:
     cols += ["holiday"]
     if use_neso:
         cols.append("neso_fc")
+    cols += list(weather)
     return cols
 
 
@@ -51,6 +52,7 @@ def build_dataset(
     horizons: tuple[int, ...] = HORIZONS,
     country: str = "GB",
     neso: pd.Series | None = None,
+    weather: pd.DataFrame | None = None,
     require_target: bool = True,
 ) -> pd.DataFrame:
     """Build one row per (issue time, horizon). ``ci`` is an hourly UTC series (NaN = missing)."""
@@ -91,6 +93,10 @@ def build_dataset(
     data["holiday"] = _holiday_flags(target.normalize(), country)
     if neso is not None:
         data["neso_fc"] = neso.reindex(target).to_numpy(dtype=float)
+    if weather is not None:
+        # archived forecasts of the target hour, issued two days earlier (see carbon/weather.py)
+        for col in weather.columns:
+            data[f"w_{col}"] = weather[col].reindex(target).to_numpy(dtype=float)
 
     df = pd.DataFrame(data)
     df.insert(0, "target_time", target)

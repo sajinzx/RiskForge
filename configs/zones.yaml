@@ -1,0 +1,16 @@
+# Representative weather locations per zone (implementation.md section 6.3). Coordinates are
+# approximate regional centres chosen by the assistant, not a validated site list: OWNER TO REVIEW.
+GB:
+  points:
+    north_sea_offshore: {lat: 53.9, lon: 1.8}     # large offshore wind area
+    irish_sea_offshore: {lat: 54.0, lon: -3.5}
+    scotland_onshore: {lat: 55.7, lon: -4.3}      # large onshore wind area
+    south_england_solar: {lat: 51.0, lon: -1.5}   # solar and temperature
+    london_demand: {lat: 51.5, lon: -0.1}         # demand-driving temperature
+weather:
+  variables: [wind_speed_100m, shortwave_radiation, temperature_2m, cloud_cover]
+  # Forecast made two days before the target hour ("previous_day2"): available at every issue time
+  # for horizons up to 48 h, so it cannot leak. The Historical Forecast API is NOT used because it
+  # stitches short-lead (near-analysis) values.
+  vintage: previous_day2
+  archive_start: "2024-03-08"   # earliest date with non-missing previous_day2 values (probed 2026-10-18)
