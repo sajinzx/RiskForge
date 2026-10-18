@@ -20,9 +20,9 @@ lowers MAE from 37.2 to 24.5, but only for horizons above 6 h; for 1-6 h it is w
 coverage is 85.4% (below the 90% target).
 
 **Scheduling (E4, 60% load, oracle limited to 120 s per block).** Savings vs ASAP: oracle 11.9%, greedy 5.4%,
-threshold 4.3%, simple conformal scheduler 4.3%. Violations: ASAP 6.9%, greedy 16.7%, oracle 8.2%.
+threshold 4.3%, simple conformal scheduler 4.3%. Violations: ASAP 6.9%, greedy 16.7%, oracle 5.5%.
 Carbon-aware shifting without capacity-aware planning raises deadline violations. The oracle is a best incumbent
-from a time-limited MILP, not a proven optimum. A rerun with a 300 s limit was still running when this was written.
+from a time-limited MILP, not a proven optimum. 25 blocks hit the time limit and 2 used the greedy fallback; the 120 s run gave 11.9% and 8.2%.
 
 **Alpha tracking (E5, synthetic estimator, lower load).** The robust MPC (S4) violation rate is 0.11, 0.17, 0.39,
 0.67% for alpha = 0.01, 0.05, 0.1, 0.2: monotone in alpha but far below it, i.e. conservative. Savings 7.1-9.4%

@@ -153,6 +153,6 @@ counted as `oracle_heuristic_blocks` and treated like time-limited blocks: the o
 E4 reports both counters; the "no scheduler beats the oracle" check is waived when any block was not proven optimal.
 
 ## Status (2026-10-18)
-E1, E2, EW, E4 (120 s oracle), E5 (corrected), E6, E7 complete for GB; results summarised in README.md.
-E4 rerun with a 300 s oracle limit still running at the time of writing. Synthetic: estimator noise and energy
+E1, E2, EW, E4 (300 s oracle), E5 (corrected), E6, E7 complete for GB; results summarised in README.md.
+E4 final run uses a 300 s oracle limit (25 time-limited, 2 heuristic blocks).
 validation data; assumed: GPU power. Owner tasks listed in README.md.
