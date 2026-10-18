@@ -62,9 +62,12 @@ def run_e5(
                     cal_sigma=cal_sigma,
                     mpc_ci_mode=ci_mode,
                     n_weeks=n_weeks,
+                    overrides=(UTILISATION,),
                 )  # fmt: skip
             )
     df = run_cells(cells, seeds, root, smoke=smoke, n_jobs=1 if smoke else n_jobs)
+    if df.groupby("seed")["pool_gpus"].nunique().max() != 1:
+        raise AssertionError("cells of one experiment disagree on the GPU pool: load override lost")
     df["block"] = df["seed"].astype(str) + "_" + df["week"].astype(str)
     df.to_parquet(out / "per_job.parquet")
 

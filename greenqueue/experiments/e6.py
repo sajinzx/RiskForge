@@ -42,6 +42,8 @@ def run_e6(root: Path, *, smoke: bool = False, n_jobs: int = 6) -> dict[str, Any
             Cell(name, ("S0_asap", "S4_mpc"), n_weeks=n_weeks, overrides=(LOAD,), **params)
         )
     df = run_cells(cells, seeds, root, smoke=smoke, n_jobs=1 if smoke else n_jobs)
+    if df.groupby("seed")["pool_gpus"].nunique().max() != 1:
+        raise AssertionError("cells of one experiment disagree on the GPU pool: load override lost")
     table = summarize_cells(df, oracle_tag="ref")
     table = table[(table["scheduler"] != "S0_asap") | (table["tag"] == "ref")]
     table.to_csv(out / "ablations.csv", index=False)

@@ -139,3 +139,9 @@ the carbon mode (point / cvar / upper) is now chosen on the 2023 calibration yea
 the rule "highest saving among modes at most 1 pp above ASAP's violation rate", and E5/E6 use that choice. The first E5
 output is superseded and must not be quoted.
 Status: done; E5/E6/E7 full runs follow.
+
+## Fix: E5 load override lost (found by comparing E5 with E6)
+After reformatting, the scenario cells of E5 lost `overrides=(UTILISATION,)`, so the robust schedulers ran at 60% load while
+the ASAP baseline ran at 30%: savings and violations in that E5 output are invalid (kept as results/e5_superseded_load_bug).
+Both E5 and E6 now assert that all cells of an experiment see the same GPU pool per seed. E5 is rerun after E7 and the
+long-oracle E4. E6 and E7 were unaffected (their overrides were present and are covered by the new assertion for E6).
