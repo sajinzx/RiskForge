@@ -39,3 +39,11 @@ test-period guard raises; Optuna smoke run. Full 50-trial tuning is run by the E
 Deviation: Optuna objective is the median pinball loss (guide §8.5 gives two wordings; tuning on tau=0.5 and reusing
 the structure for 0.05/0.95 was chosen for speed).
 Status: done
+
+## T4.1 + T4.2 Simulator and schedulers S0, S1, S2, simple S4
+Acceptance: toy tests with hand-computed answers (single job emissions, per-step CI, queueing, deadline boundary,
+pause/resume overhead exactly once, rigid-job pause and capacity violations rejected, determinism, greedy beats
+ASAP on a known series, threshold pauses interruptible job). 11 tests pass.
+Design: schedulers get JobView + ForecastBundle only; truth stays in Job (simulator/oracle only).
+Simple S4 = greedy window with the duration upper bound.
+Status: done
