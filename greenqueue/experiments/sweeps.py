@@ -36,6 +36,7 @@ class Cell:
     n_weeks: int = 4
     q: float = 0.3
     oracle_time_limit_s: float = 120.0
+    period: str = "test"  # test | calib (calib uses the 2023 year and static CQR forecasts)
     overrides: tuple[tuple[str, Any], ...] = field(default_factory=tuple)  # sim.yaml overrides
 
 
@@ -79,17 +80,19 @@ def _inputs(
 
 
 @functools.lru_cache(maxsize=8)
-def _forecast_df(root: str, smoke: bool, source: str) -> pd.DataFrame | None:
+def _forecast_df(root: str, smoke: bool, source: str, split: str = "test") -> pd.DataFrame | None:
     r = Path(root) / "results"
     if source == "perfect":
         return None
+    if split == "calib":  # only the static CQR forecasts exist for the calibration year
+        source = "cqr"
     path = (
         r / ("e2_smoke" if smoke else "e2") / "forecasts_F3_aci90.parquet"
         if source == "aci"
         else r / ("e1_smoke" if smoke else "e1") / "forecasts_F3_cqr90.parquet"
     )
     df = pd.read_parquet(path)
-    return df[df["split"] == "test"]
+    return df[df["split"] == split]
 
 
 def run_task(cell: Cell, seed: int, root: str, smoke: bool) -> pd.DataFrame:
@@ -99,9 +102,11 @@ def run_task(cell: Cell, seed: int, root: str, smoke: bool) -> pd.DataFrame:
         cfg["jobs_per_week"] = min(cfg["jobs_per_week"], 40)
     dt_h = float(cfg["dt_h"])
     js = synthesize_jobs(tasks, cfg, n_weeks=cell.n_weeks, seed=seed)
-    start = _monday_on_or_after(pd.Timestamp(sp["test_start"], tz="UTC"))
+    start = _monday_on_or_after(
+        pd.Timestamp(sp[f"{'calib' if cell.period == 'calib' else 'test'}_start"], tz="UTC")
+    )
     ci, _ = true_ci_window(gb_ci, start, js.n_steps)
-    fc = _forecast_df(root, smoke, cell.forecast)
+    fc = _forecast_df(root, smoke, cell.forecast, cell.period)
     if fc is None:
         fc = perfect_forecasts(gb_ci, start, js.n_steps)
     window = fc[
@@ -201,3 +206,38 @@ def summarize_cells(df: pd.DataFrame, oracle_tag: str | None = None) -> pd.DataF
                 }
             )  # fmt: skip
     return pd.DataFrame(rows)
+
+
+def choose_mpc_ci_mode(
+    root: Path, *, smoke: bool, out: Path, load: tuple[str, float] = ("target_utilization", 0.3)
+) -> str:
+    """Pick the carbon risk level of the MPC on the calibration year (never on test data).
+
+    Rule: highest carbon saving vs ASAP among modes whose violation rate is at most one
+    percentage point above ASAP's; if none qualifies, the lowest violation rate.
+    """
+    modes = ("point", "cvar", "upper")
+    weeks = 1 if smoke else 3
+    cells = [
+        Cell(
+            f"calib_{m}",
+            ("S0_asap", "S4_mpc"),
+            alpha=0.05,
+            mpc_ci_mode=m,
+            n_weeks=weeks,
+            overrides=(load,),
+            period="calib",
+        )
+        for m in modes
+    ]
+    df = run_cells(
+        cells, [100] if smoke else [100, 101], root, smoke=smoke, n_jobs=1 if smoke else 6
+    )
+    t = summarize_cells(df)
+    out.mkdir(parents=True, exist_ok=True)
+    t.to_csv(out / "mpc_ci_mode_calibration.csv", index=False)
+    mpc = t[t["scheduler"] == "S4_mpc"].set_index("tag")
+    s0_viol = float(t[t["scheduler"] == "S0_asap"]["violation_rate"].max())
+    ok = mpc[mpc["violation_rate"] <= s0_viol + 0.01]
+    pick = ok["saving_vs_s0"].idxmax() if len(ok) else mpc["violation_rate"].idxmin()
+    return str(pick).removeprefix("calib_")

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from greenqueue.eval.plots import PALETTE, new_axes, save
-from greenqueue.experiments.sweeps import Cell, run_cells, summarize_cells
+from greenqueue.experiments.sweeps import Cell, choose_mpc_ci_mode, run_cells, summarize_cells
 
 LOAD = ("target_utilization", 0.3)
 VARIANTS: dict[str, dict[str, Any]] = {
@@ -34,9 +34,10 @@ def run_e6(root: Path, *, smoke: bool = False, n_jobs: int = 6) -> dict[str, Any
     seeds = [0] if smoke else [0, 1, 2]
     n_weeks = 1 if smoke else 4
     variants = dict(list(VARIANTS.items())[:3]) if smoke else VARIANTS
+    ci_mode = choose_mpc_ci_mode(root, smoke=smoke, out=out)
     cells = [Cell("ref", ("S0_asap", "S1_greedy", "S3_oracle"), n_weeks=n_weeks, overrides=(LOAD,))]
     for name, kw in variants.items():
-        params = {"alpha": 0.05, "sigma": 0.3, **kw}
+        params = {"alpha": 0.05, "sigma": 0.3, "mpc_ci_mode": ci_mode, **kw}
         cells.append(
             Cell(name, ("S0_asap", "S4_mpc"), n_weeks=n_weeks, overrides=(LOAD,), **params)
         )
@@ -67,6 +68,7 @@ def run_e6(root: Path, *, smoke: bool = False, n_jobs: int = 6) -> dict[str, Any
     summary = {
         "config_hash": hashlib.sha256(json.dumps(key).encode()).hexdigest()[:12],
         "smoke": smoke,
+        "mpc_ci_mode_chosen_on_calibration": ci_mode,
         "not_run": ["no_weather (weather model F4 not built)"],
         "estimator": "SYNTHETIC lognormal duration/energy noise (sigma=0.3 unless stated)",
         "results": table.round(4).to_dict("records"),

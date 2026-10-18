@@ -19,7 +19,7 @@ import pandas as pd
 
 from greenqueue.eval.bootstrap import paired_saving_ci, rate_ci
 from greenqueue.eval.plots import PALETTE, new_axes, save
-from greenqueue.experiments.sweeps import Cell, run_cells
+from greenqueue.experiments.sweeps import Cell, choose_mpc_ci_mode, run_cells
 
 ALPHAS = (0.01, 0.05, 0.1, 0.2)
 SIGMA = 0.3
@@ -37,6 +37,7 @@ def run_e5(
     seeds = [0] if smoke else [0, 1, 2]
     n_weeks = 1 if smoke else 4
     grid = alphas or ((0.1,) if smoke else ALPHAS)
+    ci_mode = choose_mpc_ci_mode(root, smoke=smoke, out=out)
     scenarios = {"calibrated": None, "shifted": SIGMA / SHIFT}
     if smoke:
         scenarios = {"calibrated": None}
@@ -59,6 +60,7 @@ def run_e5(
                     alpha=a,
                     sigma=SIGMA,
                     cal_sigma=cal_sigma,
+                    mpc_ci_mode=ci_mode,
                     n_weeks=n_weeks,
                 )  # fmt: skip
             )
@@ -141,6 +143,7 @@ def run_e5(
             ).encode()
         ).hexdigest()[:12],
         "smoke": smoke,
+        "mpc_ci_mode_chosen_on_calibration": ci_mode,
         "seeds": seeds,
         "n_weeks": n_weeks,
         "estimator": (

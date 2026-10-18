@@ -129,3 +129,13 @@ Probe on 150-job weekly blocks at 60% load: blocks took 10-120 s; some hit the t
 carbon; replaced by: feasibility with zero lateness, else minimum lateness, then minimum carbon with lateness fixed.
 E4 now runs seeds in parallel through sweeps.run_cells and records oracle-quality counters.
 Status: done; full E4 rerun below.
+
+## T9.3 MPC carbon risk level chosen on the calibration year
+Disclosure: the first E5 run used the guide default (plan with the 90% upper carbon bound). It saved only 1.6-2.2% against
+10.6% for the greedy window. A diagnostic on test-period weeks 0-2 showed this came from planning with the upper bound
+(its width grows with horizon, so far hours look dirty and shifting is discouraged): with perfect forecasts the MPC saved
+12.4% vs 11.2% for greedy with 0% violations, so the implementation is sound. To avoid selecting the setting on test data,
+the carbon mode (point / cvar / upper) is now chosen on the 2023 calibration year (static CQR forecasts, seeds 100-101) with
+the rule "highest saving among modes at most 1 pp above ASAP's violation rate", and E5/E6 use that choice. The first E5
+output is superseded and must not be quoted.
+Status: done; E5/E6/E7 full runs follow.
