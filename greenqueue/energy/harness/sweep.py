@@ -67,6 +67,33 @@ def default_grid() -> list[RunConfig]:
     return grid
 
 
+def quick_grid() -> list[RunConfig]:
+    """A small grid that touches every family and every (prompt, gen) setting once.
+
+    For short free-tier sessions: the first sweep stopped inside the LLM block, so some families
+    and settings were never measured. Run this first, then the default grid to fill in.
+    """
+    g: list[RunConfig] = []
+    for prec in ("fp32", "fp16"):
+        for b in (32, 128):
+            g.append(RunConfig("resnet18", "resnet18", "cnn", b, 0, prec))
+    for b in (16, 64):
+        g.append(RunConfig("vit_b16", "vit_b16", "vit", b, 0, "fp16"))
+    for b in (8, 32):
+        for sq in (128, 512):
+            g.append(RunConfig("bert_base", "bert_base", "bert", b, sq, "fp16"))
+    for b in (1, 4):
+        for prompt in (128, 512):
+            for gen in (64, 256):
+                g.append(
+                    RunConfig(
+                        "llm_infer", "TinyLlama/TinyLlama-1.1B-Chat-v1.0", "llm", b,
+                        prompt + gen, "fp16", (("gen", gen), ("prompt", prompt)),
+                    )
+                )  # fmt: skip
+    return g
+
+
 def done_keys(runs_path: Path) -> set[tuple[str, int]]:
     if not runs_path.exists():
         return set()

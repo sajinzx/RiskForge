@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from greenqueue.energy.harness.power import NvmlSampler
-from greenqueue.energy.harness.sweep import default_grid, run_sweep
+from greenqueue.energy.harness.sweep import default_grid, quick_grid, run_sweep
 
 
 def main() -> None:
@@ -21,7 +21,12 @@ def main() -> None:
     ap.add_argument("--idle-s", type=float, default=30.0)
     ap.add_argument("--min-run-s", type=float, default=60.0)
     ap.add_argument("--only", default=None, help="run only this workload name")
+    ap.add_argument(
+        "--quick", action="store_true", help="small grid, 3 repeats, shorter runs (short sessions)"
+    )
     args = ap.parse_args()
+    if args.quick:
+        args.repeats, args.idle_s, args.min_run_s = 3, 15.0, 30.0
 
     import torch
 
@@ -34,7 +39,8 @@ def main() -> None:
     print("GPU:", info)
     from greenqueue.energy.harness.workloads import make_runner
 
-    grid = [c for c in default_grid() if args.only in (None, c.workload)]
+    base = quick_grid() if args.quick else default_grid()
+    grid = [c for c in base if args.only in (None, c.workload)]
     out = args.out / info["gpu_name"].replace(" ", "_") / str(date.today())
     n = run_sweep(
         grid,

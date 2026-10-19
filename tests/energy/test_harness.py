@@ -80,3 +80,16 @@ def test_sweep_is_resumable_and_writes_expected_fields(tmp_path: Path) -> None:
         0.0, abs=1e-9
     )  # power == idle -> no energy above idle
     assert len(list((tmp_path / "traces").glob("*.npz"))) == 4
+
+
+def test_quick_grid_covers_every_family_and_setting_once() -> None:
+    from greenqueue.energy.harness.sweep import default_grid, quick_grid
+
+    g = quick_grid()
+    assert {c.family for c in g} == {"cnn", "vit", "bert", "llm"}
+    assert len({c.key() for c in g}) == len(g)
+    llm = {dict(c.extra)["prompt"] * 10000 + dict(c.extra)["gen"] for c in g if c.family == "llm"}
+    assert len(llm) == 4
+    assert {c.key() for c in g} <= {c.key() for c in default_grid()} | {
+        c.key() for c in g if c.workload != "llm_infer"
+    }
