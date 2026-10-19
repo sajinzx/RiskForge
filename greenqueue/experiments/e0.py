@@ -33,7 +33,7 @@ def shifting_saving(ci: np.ndarray, d: int, w: int) -> np.ndarray:
     n = len(run_mean) - w
     now = run_mean[:n]
     best = np.min(np.lib.stride_tricks.sliding_window_view(run_mean, w + 1)[:n], axis=1)
-    return 1.0 - best / now
+    return np.asarray(1.0 - best / now)
 
 
 def run_e0(root: Path, *, smoke: bool = False) -> dict[str, Any]:
@@ -49,7 +49,7 @@ def run_e0(root: Path, *, smoke: bool = False) -> dict[str, Any]:
             if len(ci) <= w + d + 24:
                 continue
             s = shifting_saving(ci.to_numpy(), d, w)
-            idx = ci.index[: len(s)]
+            idx = pd.DatetimeIndex(ci.index[: len(s)])
             m, lo, hi = block_bootstrap_ci(s, idx)
             rows.append({"duration_h": d, "window_h": w, "saving": m, "lo": lo, "hi": hi})
     table = pd.DataFrame(rows)
