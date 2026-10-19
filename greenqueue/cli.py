@@ -12,6 +12,7 @@ app = typer.Typer(help="GreenQueue: uncertainty-aware carbon scheduling.", no_ar
 
 # experiment id -> (module, function)
 EXPERIMENTS = {
+    "e0": ("greenqueue.experiments.e0", "run_e0"),
     "e1": ("greenqueue.experiments.e1", "run_e1"),
     "e2": ("greenqueue.experiments.e2", "run_e2"),
     "e3": ("greenqueue.experiments.e3", "run_e3"),
