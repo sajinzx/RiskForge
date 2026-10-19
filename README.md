@@ -32,6 +32,15 @@ from a time-limited MILP, not a proven optimum. 25 blocks hit the time limit and
 from 8.2% to 10.6%. A perfect carbon forecast gives savings 10.7% and perfect energy/duration 10.8%, so the
 duration bound costs more savings than carbon forecast error does.
 
+**Energy models on real measurements (E3, one Tesla T4 on Colab, 23 configurations, 4 models).** Median absolute
+percentage error of energy per step: random split 43% (log-linear), 78% (LightGBM), 40% (gray-box); leave-one-model-out
+99%, 380%, 234%. Leave-one-GPU-out is undefined with one GPU. These models are too inaccurate to use as an estimator,
+and the conformal intervals are infinite because the calibration set (5 configurations) is too small for 90% coverage.
+So the scheduling experiments (E4-E8) still use the SYNTHETIC estimator. Data issues found (`PROGRESS.md`): energy is
+measured above idle power; the T4 runs near its 70 W cap (mean 67 W), so clocks and step time vary with batch size
+(ResNet-18 fp16 batch 256 is faster than batch 128); the LLM runs cover only 3 of the 4 planned (prompt, generation)
+settings and one of them has 4 repeats; `seq` does not distinguish prompt from generation length.
+
 **Average vs marginal accounting (E8, 60% load, oracle 60 s per block).** Schedules planned on average intensity
 were re-scored with marginal-emissions PROXIES (not measured marginal data): `merit_gas` (gas on the margin when it
 supplies at least 10% of generation, else 0) and `const_gas` (control). Savings vs ASAP, average / merit_gas:
@@ -53,7 +62,7 @@ Experiments are in `greenqueue/experiments`, run with `python -m greenqueue.cli 
 
 ## Limitations
 
-- Estimator noise is synthetic; energy models were validated only on synthetic data.
+- Scheduling experiments use a synthetic duration/energy estimator. Real energy data is one T4 and 23 configurations, too little for a usable model (see E3 above).
 - Emission factors, GPU specs and data licences are unverified (`QUESTIONS.md`, `data/MANIFEST.md`).
 - NESO's own forecast (FN) has unknown vintage, so it is excluded from the main comparison.
 - Single zone (GB); planning uses average intensity, and marginal emissions appear only as proxies in E8.

@@ -158,3 +158,12 @@ E4 final run uses a 300 s oracle limit (25 time-limited, 2 heuristic blocks).
 validation data; assumed: GPU power. Owner tasks listed in README.md.
 
 E8 (average vs marginal proxies) implemented and run on GB; results in README.md. Only E9 (cross-zone) remains, blocked on the ENTSO-E token.
+
+## Real GPU measurements (2026-10-19)
+Colab Tesla T4 (driver 580.82.07, CUDA 13.0, torch 2.11.0): 114 runs, 23 configurations, 4 models (resnet18, bert_base,
+vit_b16, TinyLlama). NVML power limit 70 W matches configs/gpus.yaml; peak TFLOPS there are still from memory.
+E3 on this data: see README.md. Findings: (1) energy_per_step is above-idle energy (mean power 67 W minus idle ~26-30 W);
+(2) the GPU is near its power cap so step time is not smooth in batch size; (3) LLM sweep incomplete (no prompt 512 / gen 256
+config, one config with 4 repeats) and `seq`=prompt+gen conflates settings; (4) conformal intervals are infinite with
+5 calibration points. Not fixed here: more GPU types (needed for leave-one-GPU-out), more models, a longer LLM sweep.
+Raw data stays in data/raw (git-ignored). The scheduling results were not rerun: they use the synthetic estimator.
