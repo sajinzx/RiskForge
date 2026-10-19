@@ -60,6 +60,10 @@ S2 threshold, S3 oracle MILP via PuLP/HiGHS, S4 robust MPC). Schedulers see only
 so no future information leaks. Forecast leakage is tested by overwriting data from the issue time onward.
 Experiments are in `greenqueue/experiments`, run with `python -m greenqueue.cli run <e1..e7|ew>`.
 
+## Dashboard
+
+`pip install streamlit plotly` then `streamlit run greenqueue/demo/app.py` shows the saved results (reads `results/`, or the folder in `GQ_RESULTS`).
+
 ## Limitations
 
 - Scheduling experiments use a synthetic duration/energy estimator. Real energy data is one T4 and 23 configurations, too little for a usable model (see E3 above).
@@ -73,5 +77,5 @@ Experiments are in `greenqueue/experiments`, run with `python -m greenqueue.cli 
 
 ## Not done (owner)
 
-GPU measurements on Colab (`greenqueue/energy/harness/colab_runner.ipynb`), ENTSO-E token for DE/FR/PL/ES and
+More GPU measurements (`greenqueue/energy/harness/colab_runner.ipynb`, start with `--quick`; the first T4 sweep was partial and the free GPU quota ran out), ENTSO-E token for DE/FR/PL/ES and
 E9, verifying factors/specs/licences, literature review and citations, dependency lockfile (Q1).

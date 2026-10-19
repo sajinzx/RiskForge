@@ -31,6 +31,7 @@ dependencies = [
 [project.optional-dependencies]
 # GPU measurement harness only (Colab / Kaggle); not needed on the laptop.
 gpu = ["nvidia-ml-py", "codecarbon", "torch", "torchvision", "transformers", "accelerate"]
+demo = ["streamlit", "plotly"]
 dev = ["pytest", "hypothesis", "ruff", "mypy", "pre-commit", "types-PyYAML", "types-requests", "pandas-stubs"]
 
 [project.scripts]
