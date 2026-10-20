@@ -78,3 +78,19 @@ def test_month_windows_and_download_dedupe() -> None:
 
     df = download_zone(q, "FR", a, b)
     assert not df.index.has_duplicates and df.index.is_monotonic_increasing
+
+
+def test_download_zone_skips_months_without_data_and_reports_them() -> None:
+    class NoData(Exception):
+        pass
+
+    def q(zone: str, a: pd.Timestamp, b: pd.Timestamp) -> pd.DataFrame:
+        if a.month == 2:
+            raise NoData
+        idx = pd.date_range(a, b, freq="h", inclusive="left", tz="UTC")
+        return pd.DataFrame({"Wind": 1.0}, index=idx)
+
+    missing: list[tuple[pd.Timestamp, pd.Timestamp]] = []
+    a, b = pd.Timestamp("2024-01-01", tz="UTC"), pd.Timestamp("2024-04-01", tz="UTC")
+    df = download_zone(q, "X", a, b, skip=(NoData,), missing=missing)
+    assert [m[0].month for m in missing] == [2] and df.index.month.isin([1, 3]).all()

@@ -21,13 +21,14 @@ EXPERIMENTS = {
     "e6": ("greenqueue.experiments.e6", "run_e6"),
     "e7": ("greenqueue.experiments.e7", "run_e7"),
     "e8": ("greenqueue.experiments.e8", "run_e8"),
+    "e9": ("greenqueue.experiments.e9", "run_e9"),
     "ew": ("greenqueue.experiments.ew", "run_ew"),
 }
 # experiments needed to rebuild each version's figures, in dependency order
 VERSIONS = {
     "v1": ["e1", "e4"],
-    "v2": ["e1", "e2", "ew", "e3", "e4", "e5", "e6", "e7"],
-    "v3": ["e1", "e2", "ew", "e3", "e4", "e5", "e6", "e7", "e8"],
+    "v2": ["e1", "e2", "ew", "e3", "e4", "e5", "e6", "e7", "e9"],
+    "v3": ["e1", "e2", "ew", "e3", "e4", "e5", "e6", "e7", "e8", "e9"],
 }
 
 

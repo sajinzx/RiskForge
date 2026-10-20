@@ -5,11 +5,13 @@ Needs ENTSOE_API_KEY in the environment or .env. Usage:
 """
 
 import argparse
+import json
 import os
 from pathlib import Path
 
 import pandas as pd
 from entsoe import EntsoePandasClient
+from entsoe.exceptions import NoMatchingDataError
 
 from greenqueue.carbon.entsoe_api import download_zone
 
@@ -37,16 +39,22 @@ def main() -> None:
     start = pd.Timestamp(args.start, tz="UTC")
     end = pd.Timestamp(args.end, tz="UTC") + pd.Timedelta(days=1)
     args.out.mkdir(parents=True, exist_ok=True)
+    gaps: dict[str, list[str]] = {}
     for zone in args.zones:
+        missing: list[tuple[pd.Timestamp, pd.Timestamp]] = []
         df = download_zone(
             lambda z, a, b: client.query_generation(z, start=a, end=b, psr_type=None),
             zone,
             start,
             end,
+            skip=(NoMatchingDataError,),
+            missing=missing,
         )
+        gaps[zone] = [a.strftime("%Y-%m") for a, _ in missing]
         df.columns = [" | ".join(c) if isinstance(c, tuple) else str(c) for c in df.columns]
         df.to_parquet(args.out / f"{zone}.parquet")
-        print(zone, df.shape)
+        print(zone, df.shape, "months without data:", gaps[zone] or "none", flush=True)
+    (args.out / "download_gaps.json").write_text(json.dumps(gaps, indent=2))
 
 
 if __name__ == "__main__":

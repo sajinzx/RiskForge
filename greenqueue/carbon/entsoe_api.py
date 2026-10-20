@@ -25,9 +25,24 @@ def download_zone(
     zone: str,
     start: pd.Timestamp,
     end: pd.Timestamp,
+    *,
+    skip: tuple[type[Exception], ...] = (),
+    missing: list[tuple[pd.Timestamp, pd.Timestamp]] | None = None,
 ) -> pd.DataFrame:
-    """Fetch generation for ``zone`` month by month; ``query`` wraps ``query_generation``."""
-    parts = [query(zone, a, b) for a, b in month_windows(start, end)]
+    """Fetch generation for ``zone`` month by month; ``query`` wraps ``query_generation``.
+
+    Months whose query raises one of the ``skip`` exceptions (for example "no matching data")
+    are left out and appended to ``missing`` so the caller can report the gaps.
+    """
+    parts = []
+    for a, b in month_windows(start, end):
+        try:
+            parts.append(query(zone, a, b))
+        except skip:
+            if missing is not None:
+                missing.append((a, b))
+    if not parts:
+        raise ValueError(f"no data for {zone} between {start} and {end}")
     df = pd.concat(parts)
     df = df[~df.index.duplicated(keep="first")].sort_index()
     df.index = pd.DatetimeIndex(df.index).tz_convert("UTC")
