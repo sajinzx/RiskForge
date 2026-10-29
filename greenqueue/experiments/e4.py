@@ -29,7 +29,13 @@ from greenqueue.schedulers.baselines import Asap, GreedyWindow, Threshold
 from greenqueue.schedulers.s3_oracle import PlanScheduler, solve_oracle
 from greenqueue.schedulers.s4_robust import RobustMPC
 from greenqueue.sim.simulator import SimResult, simulate
-from greenqueue.sim.traces import JobSet, load_alibaba_tasks, load_config, synthesize_jobs
+from greenqueue.sim.traces import (
+    JobSet,
+    load_alibaba_tasks,
+    load_config,
+    load_philly_jobs,
+    synthesize_jobs,
+)
 
 Q_GRID = (0.1, 0.2, 0.3, 0.4, 0.5)
 SCHEDULERS = ("S0_asap", "S1_greedy", "S2_threshold", "S3_oracle", "S4_simple")
@@ -172,12 +178,23 @@ def run_e4(
     n_weeks, seeds, calib_weeks = (2, [0], 2) if smoke else (13, list(sim_cfg["seeds"]), 4)
     dt_h = float(sim_cfg["dt_h"])
 
-    cache = root / "data" / "processed" / "alibaba_tasks.parquet"
+    trace = os.environ.get("GQ_TRACE", "alibaba")  # alibaba (default) | philly
+    if trace not in ("alibaba", "philly"):
+        raise ValueError(f"GQ_TRACE must be alibaba or philly, got {trace!r}")
+    if trace == "philly":
+        out = out.with_name(out.name + "_philly")
+        out.mkdir(parents=True, exist_ok=True)
+    cache = root / "data" / "processed" / f"{trace}_tasks.parquet"
     if cache.exists():
         tasks = pd.read_parquet(cache)
     else:
-        csv = root / "data" / "raw" / "traces" / "alibaba" / "x" / "pai_task_table.csv"
-        tasks = load_alibaba_tasks(csv, sim_cfg["min_duration_h"], sim_cfg["max_duration_h"])
+        lo_h, hi_h = sim_cfg["min_duration_h"], sim_cfg["max_duration_h"]
+        if trace == "philly":
+            log = root / "data" / "raw" / "traces" / "philly" / "trace-data" / "cluster_job_log"
+            tasks = load_philly_jobs(log, lo_h, hi_h)
+        else:
+            csv = root / "data" / "raw" / "traces" / "alibaba" / "x" / "pai_task_table.csv"
+            tasks = load_alibaba_tasks(csv, lo_h, hi_h)
         cache.parent.mkdir(parents=True, exist_ok=True)
         tasks.to_parquet(cache)
     gb_ci = pd.read_parquet(root / "data" / "processed" / "gb_hourly.parquet")["ci"]

@@ -64,6 +64,52 @@ def load_alibaba_tasks(
     return df[cols].reset_index(drop=True)
 
 
+def load_philly_jobs(json_path: Path, min_duration_h: float, max_duration_h: float) -> pd.DataFrame:
+    """Finished (``Pass``) Philly jobs with a valid duration; same columns as the Alibaba loader.
+
+    Only the last attempt is used (earlier attempts failed and were retried), so duration is its
+    end minus start and GPUs are the GPUs it held across all its machines. Timestamps are used as
+    given (the trace README does not state a time zone), so ``week_s`` keeps the trace's own clock.
+    """
+    import json
+
+    rows = []
+    for job in json.loads(json_path.read_text(encoding="utf8")):
+        if job.get("status") != "Pass" or not job.get("attempts"):
+            continue
+        last = job["attempts"][-1]
+        if not last.get("start_time") or not last.get("end_time"):
+            continue
+        gpus = sum(len(d.get("gpus", [])) for d in last.get("detail", []))
+        if gpus == 0:
+            continue
+        rows.append(
+            {
+                "job_name": job["jobid"],
+                "task_name": job.get("vc", ""),
+                "gpus": gpus,
+                "start": last["start_time"],
+                "end": last["end_time"],
+                "submitted": job["submitted_time"],
+            }
+        )
+    df = pd.DataFrame(rows)
+    fmt = "%Y-%m-%d %H:%M:%S"  # the trace writes missing times as the string "None"
+    for c in ("start", "end", "submitted"):
+        df[c] = pd.to_datetime(df[c], format=fmt, errors="coerce")
+    df = df.dropna(subset=["start", "end", "submitted"])
+    df["duration_s"] = (df["end"] - df["start"]).dt.total_seconds()
+    keep = (df["duration_s"] >= min_duration_h * 3600) & (df["duration_s"] <= max_duration_h * 3600)
+    df = df[keep].copy()
+    sub = df["submitted"]
+    monday = (sub.dt.normalize() - pd.to_timedelta(sub.dt.dayofweek, unit="D")).min()
+    df["wall_s"] = (sub - monday).dt.total_seconds()
+    df["trace_week"] = (df["wall_s"] // WEEK_S).astype(int)
+    df["week_s"] = df["wall_s"] % WEEK_S
+    cols = ["job_name", "task_name", "gpus", "duration_s", "wall_s", "trace_week", "week_s"]
+    return df[cols].reset_index(drop=True)
+
+
 @dataclass(frozen=True)
 class JobSet:
     jobs: list[Job]

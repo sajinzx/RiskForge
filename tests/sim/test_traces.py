@@ -75,3 +75,36 @@ def test_job_gpu_requests_are_capped_so_the_pool_is_not_set_by_outliers() -> Non
     assert js.capacity_gpus < 100
     util = js.meta["offered_gpu_hours"] / (js.capacity_gpus * 4 * 7 * 24)
     assert 0.5 < util <= 0.62
+
+
+def test_philly_loader_uses_last_attempt_and_filters(tmp_path: Path) -> None:
+    import json
+
+    from greenqueue.sim.traces import load_philly_jobs
+
+    def att(s: str, e: str | None, gpus: list[list[str]]) -> dict:
+        return {"start_time": s, "end_time": e, "detail": [{"ip": "m", "gpus": g} for g in gpus]}
+
+    jobs = [
+        # retried: first attempt ignored; last attempt 2 h on 2 machines x 2 GPUs = 4 GPUs
+        {"status": "Pass", "jobid": "a", "vc": "v", "submitted_time": "2017-10-02 00:00:00",
+         "attempts": [att("2017-10-02 00:01:00", "2017-10-02 00:30:00", [["gpu0"]]),
+                      att("2017-10-02 01:00:00", "2017-10-02 03:00:00", [["g0", "g1"]] * 2)]},
+        {"status": "Failed", "jobid": "b", "vc": "v", "submitted_time": "2017-10-02 00:00:00",
+         "attempts": [att("2017-10-02 01:00:00", "2017-10-02 03:00:00", [["g0"]])]},
+        {"status": "Pass", "jobid": "c", "vc": "v", "submitted_time": "2017-10-02 00:00:00",
+         "attempts": [att("2017-10-02 01:00:00", "2017-10-02 01:05:00", [["g0"]])]},  # 5 min
+        {"status": "Pass", "jobid": "d", "vc": "v", "submitted_time": "2017-10-02 00:00:00",
+         "attempts": [att("2017-10-02 01:00:00", "None", [["g0"]])]},  # never ended
+        {"status": "Pass", "jobid": "e", "vc": "v", "submitted_time": "2017-10-10 06:00:00",
+         "attempts": [att("2017-10-10 06:00:00", "2017-10-10 07:00:00", [["g0"]])]},
+    ]  # fmt: skip
+    p = tmp_path / "cluster_job_log"
+    p.write_text(json.dumps(jobs))
+    df = load_philly_jobs(p, 10 / 60, 72)
+    assert list(df["job_name"]) == ["a", "e"]
+    assert list(df["gpus"]) == [4, 1]
+    assert np.allclose(df["duration_s"], [7200, 3600])
+    # 2017-10-02 is a Monday: job a is week 0 at 0 s; job e is Tuesday 06:00 of week 1
+    assert list(df["trace_week"]) == [0, 1]
+    assert np.allclose(df["week_s"], [0, 24 * 3600 + 6 * 3600])
