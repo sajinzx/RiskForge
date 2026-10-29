@@ -111,7 +111,10 @@ def run_e9(root: Path, *, smoke: bool = False, seed: int = 0) -> dict[str, Any]:
                     "mae": mae,
                     "mae_lo": lo,
                     "mae_hi": hi,
-                    "skill_vs_persistence": float(ae.mean() / pers.mean()),
+                    # same hours for both: a gap in the target leaves lag_1 NaN for a few rows
+                    "skill_vs_persistence": float(
+                        ae[np.isfinite(pers)].mean() / pers[np.isfinite(pers)].mean()
+                    ),
                 }
                 for name, cq in (("as_is", cq_src), ("recalibrated", cq_tgt)):
                     a, b = cq.predict(h, q_test[0.05], q_test[0.95])
