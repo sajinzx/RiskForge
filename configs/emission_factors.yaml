@@ -12,7 +12,7 @@ factors:
   Fossil Peat: {ef: 820, status: assumption}  # treated as coal
   Biomass: {ef: 230, status: ipcc}
   Nuclear: {ef: 12, status: ipcc}
-  Hydro Run-of-river and poundage: {ef: 24, status: ipcc}
+  Hydro Run-of-river and pondage: {ef: 24, status: ipcc}   # ENTSO-E spelling ("pondage")
   Hydro Water Reservoir: {ef: 24, status: ipcc}
   Hydro Pumped Storage: {ef: 24, status: ipcc}   # generation side only; consumption excluded
   Wind Onshore: {ef: 11, status: ipcc}

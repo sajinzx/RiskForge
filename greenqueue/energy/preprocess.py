@@ -42,12 +42,20 @@ def load_runs(root: Path) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def flag_outlier_repeats(df: pd.DataFrame) -> pd.Series:
-    """True for repeats beyond 3 MAD of their configuration median energy."""
-    g = df.groupby("config_key")["energy_per_step_kwh"]
-    med = g.transform("median")
-    mad = (df["energy_per_step_kwh"] - med).abs().groupby(df["config_key"]).transform("median")
-    return ((df["energy_per_step_kwh"] - med).abs() > 3 * mad.replace(0, np.nan)).fillna(False)
+def flag_outlier_repeats(df: pd.DataFrame, min_rel: float = 0.10) -> pd.Series:
+    """True for repeats beyond 3 MAD and more than ``min_rel`` of their (GPU, config) median energy.
+
+    Grouped per GPU when a ``gpu_name`` column exists: the same configuration on another GPU has a
+    different energy, so pooling GPUs would flag whole GPUs instead of disturbed repeats.
+    """
+    keys = [df["gpu_name"], df["config_key"]] if "gpu_name" in df else [df["config_key"]]
+    e = df["energy_per_step_kwh"]
+    med = e.groupby(keys).transform("median")
+    mad = (e - med).abs().groupby(keys).transform("median")
+    beyond_mad = ((e - med).abs() > 3 * mad.replace(0, np.nan)).fillna(False)
+    # Also require a material deviation: on a quiet GPU the repeats agree within ~1%, so 3 MAD alone
+    # would flag harmless 1-2% wobble. Disturbances (other programs, throttling) are 25% or more.
+    return beyond_mad & ((e - med).abs() > min_rel * med)
 
 
 def aggregate_configs(runs: pd.DataFrame, specs: dict[str, dict[str, object]]) -> pd.DataFrame:
@@ -57,6 +65,13 @@ def aggregate_configs(runs: pd.DataFrame, specs: dict[str, dict[str, object]]) -
     runs["outlier_repeat"] = flag_outlier_repeats(runs)
     keys = ["gpu", "config_key"]
     first = runs.groupby(keys).first()
+    n_out = runs.groupby(keys)["outlier_repeat"].sum()
+    # Disturbed repeats (other programs on a laptop, throttling) are left out of the means.
+    # A configuration keeps all its repeats if dropping would leave fewer than two.
+    kept = runs[~runs["outlier_repeat"]]
+    thin = kept.groupby(keys).size().reindex(n_out.index, fill_value=0) < 2
+    runs = pd.concat([kept, runs[runs.set_index(keys).index.isin(thin[thin].index)]])
+    runs = runs[~runs.index.duplicated()]
     agg = runs.groupby(keys).agg(
         energy_per_step_kwh=("energy_per_step_kwh", "mean"),
         energy_std=("energy_per_step_kwh", "std"),
@@ -65,8 +80,8 @@ def aggregate_configs(runs: pd.DataFrame, specs: dict[str, dict[str, object]]) -
         idle_w=("idle_w", "mean"),
         mean_util_pct=("mean_util_pct", "mean"),
         repeats=("repeat", "count"),
-        outlier_repeats=("outlier_repeat", "sum"),
     )
+    agg["outlier_repeats"] = n_out
     cols = ["workload", "model", "family", "batch", "seq", "precision", "flops_per_step", "source"]
     out = first[cols].join(agg).reset_index()
     out["tdp_w"] = [float(specs[g]["tdp_w"]) for g in out["gpu"]]  # type: ignore[arg-type]

@@ -5,6 +5,7 @@ run on one job-mix seed. Workers rebuild their inputs from disk so nothing large
 from __future__ import annotations
 
 import functools
+import os
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -20,7 +21,7 @@ from greenqueue.experiments.e4 import (
     true_ci_window,
 )
 from greenqueue.experiments.harness import ForecastReplay
-from greenqueue.sim.traces import load_alibaba_tasks, load_config, synthesize_jobs
+from greenqueue.sim.traces import load_alibaba_tasks, load_config, load_philly_jobs, synthesize_jobs
 
 
 @dataclass(frozen=True)
@@ -70,9 +71,13 @@ def _inputs(
     sim_cfg = load_config(r / "configs" / "sim.yaml")
     split_cfg = yaml.safe_load((r / "configs" / "splits.yaml").read_text(encoding="utf8"))
     sp = split_cfg["smoke"] if smoke else split_cfg
-    cache = r / "data" / "processed" / "alibaba_tasks.parquet"
+    trace = os.environ.get("GQ_TRACE", "alibaba")  # same switch as e4; workers inherit the env
+    cache = r / "data" / "processed" / f"{trace}_tasks.parquet"
     if cache.exists():
         tasks = pd.read_parquet(cache)
+    elif trace == "philly":
+        log = r / "data" / "raw" / "traces" / "philly" / "trace-data" / "cluster_job_log"
+        tasks = load_philly_jobs(log, sim_cfg["min_duration_h"], sim_cfg["max_duration_h"])
     else:
         csv = r / "data" / "raw" / "traces" / "alibaba" / "x" / "pai_task_table.csv"
         tasks = load_alibaba_tasks(csv, sim_cfg["min_duration_h"], sim_cfg["max_duration_h"])
