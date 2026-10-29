@@ -23,3 +23,26 @@ gpus:
     match: "A100"
     peak_tflops: {fp32: 19.5, fp16: 312.0, bf16: 312.0}
     tdp_w: 400
+  RTX4050L:
+    # ASSUMPTION, NOT a datasheet value (NVIDIA publishes no fixed peak for laptop parts):
+    # fp32 = 2560 CUDA cores x 2 x ~2.37 GHz boost; fp16/bf16 = 20 SMs x ~2.37 GHz scaled from the
+    # RTX 4090's dense fp16 tensor rate per SM-GHz. TDP: top of NVIDIA's 35-115 W laptop TGP range;
+    # the measured laptop's own TGP is unknown (NVML does not report it on laptops). OWNER MUST VERIFY.
+    match: "RTX 4050 Laptop"
+    peak_tflops: {fp32: 12.1, fp16: 48.5, bf16: 48.5}
+    tdp_w: 115
+  RTX3050L:
+    # ASSUMPTION, NOT a datasheet value: fp32 = 2048 CUDA cores x 2 x ~1.74 GHz boost; fp16/bf16 =
+    # 16 SMs x ~1.74 GHz scaled from the RTX 3090's dense fp16 tensor rate per SM-GHz. TDP 70 W is the
+    # power limit NVML reported on the measured laptop on 2026-10-21 (after a shutdown it reported 30 W the next day;
+    # that day's runs are excluded). OWNER MUST VERIFY.
+    match: "RTX 3050 Laptop"
+    peak_tflops: {fp32: 7.1, fp16: 28.4, bf16: 28.4}
+    tdp_w: 70
+  RTX5070L:
+    # ASSUMPTION, NOT a datasheet value: fp32 = 4608 CUDA cores x 2 x ~2.1 GHz boost; fp16/bf16 =
+    # 36 SMs x ~2.1 GHz scaled from the RTX 5090's dense fp16 tensor rate per SM-GHz. TDP: top of the
+    # 50-100 W laptop TGP range (NVML does not report it on this laptop). OWNER MUST VERIFY.
+    match: "RTX 5070 Laptop"
+    peak_tflops: {fp32: 19.4, fp16: 77.0, bf16: 77.0}
+    tdp_w: 100
